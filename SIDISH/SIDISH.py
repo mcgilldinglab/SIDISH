@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
+import os
 
 def process_Data(X, Y, test_size, batch_size, seed):
 
@@ -96,7 +97,10 @@ class SIDISH:
         self.Y = self.bulk.iloc[:, :2].values
         self.X_train, self.X_test, self.y_train, self.y_test = process_Data(self.X, self.Y, test_size, batch_size, self.seed)
 
-    def train(self, iterations, percentile, steepness, path):
+    def train(self, iterations, percentile, steepness, path, num_workers = 8):
+        os.makedirs(path, exist_ok=True)
+        
+        self.num_workers = num_workers
         self.percentile = percentile
         self.steepness = steepness
 
@@ -107,9 +111,10 @@ class SIDISH:
 
         # Initialise the VAE of phase 1
         self.vae = VAE(self.epochs_1,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_1, self.dropout_1,self.device, self.seed)
-        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type )
+        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
 
         # Initial training of VAE in iteration 1
+        print("########################################## ITERATION 1 OUT OF {} ##########################################".format(iterations))
         self.vae.train()
 
         # Save VAE for iterative process
@@ -123,7 +128,7 @@ class SIDISH:
         for i in range(iterations):
             self.encoder = self.vae
 
-            self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size, self.lr_2, self.dropout_2)
+            self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size,self.seed, self.lr_2, self.dropout_2)
             self.deepCox_model.train(self.epochs_2)
 
             self.train_loss_Cox.append(self.deepCox_model.get_train_loss())
@@ -149,8 +154,9 @@ class SIDISH:
                 break
 
             else:
+                print("########################################## ITERATION {} OUT OF {} ##########################################".format(i, iterations))
                 self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_3, self.dropout_1,self.device, self.seed)
-                self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type)
+                self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type,self.num_workers)
                 self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(path)))
                 self.vae.train()
 
@@ -172,14 +178,14 @@ class SIDISH:
     def reload(self, path):
 
         self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_3, self.dropout_1,self.device, self.seed)
-        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type)
+        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
         self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(path)))
 
         self.encoder = self.vae
 
         self.W_vector = self.X_train[:, -1]
 
-        self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size, self.lr_2, self.dropout_2)
+        self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size, self.seed, self.lr_2, self.dropout_2)
         self.deepCox_model.model.load_state_dict(torch.load("{}deepCox".format(path)))
 
         print('Reload Complete')    

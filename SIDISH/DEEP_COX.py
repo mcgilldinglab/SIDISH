@@ -5,7 +5,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.optim as optim
 from tqdm import tqdm
 from lifelines.utils import concordance_index
-
+import os
 from DEEP_COX_ARCHITECTURE import DEEPCOX_ARCHITECTURE as deepCox
 
 
@@ -68,8 +68,8 @@ def loss_DeepCox(pred, events, durations, weight=None, train=True):
 
 class DEEPCOX():
 
-    def __init__(self, X_train, Y_train, weights, hidden, encoder, device, batch_size, lr=0.000001, dropout=0):
-        
+    def __init__(self, X_train, Y_train, weights, hidden, encoder, device, batch_size,seed, lr=0.000001, dropout=0):
+
         self.device = device
         self.X_train = X_train
         self.Y_train = Y_train
@@ -79,6 +79,13 @@ class DEEPCOX():
         self.encoder = encoder 
         self.dropout = dropout
         self.lr = lr
+        self.seed = seed
+
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+        torch.backends.cudnn.deterministic = True
+        np.random.seed(self.seed)
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
 
         # Initializing the Deep Cox regression model of phase 2 of SIDISH
         self.model = deepCox(hidden=self.hidden, encoder=self.encoder, dropout=self.dropout)
@@ -95,7 +102,7 @@ class DEEPCOX():
         self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
     def train(self, epochs):
-        
+
         # Training the Deep Cox Regression model
         for epoch in tqdm(range(epochs)):
             for x, y in self.train_loader:

@@ -31,7 +31,7 @@ class VAE():
         self.dropout = dropout
         self.device = device
 
-    def initialize(self, adata, W = None, batch_size = 1024, type='Normal'):
+    def initialize(self, adata, W=None, batch_size=1024, type="Normal", num_workers=8):
 
         ## Initialise model
         self.adata = adata
@@ -57,12 +57,12 @@ class VAE():
         ## Prep single cell data for training in VAE -- cell by genes matrix X with gene weight matrix W
         data_list = [torch.from_numpy(np.array(d)).type(torch.float) for d in data_list]
         dataset = TensorDataset(data_list[0].float(), data_list[1].float())
-        kwargs = {'num_workers': 16, 'pin_memory':True}
+        kwargs = {'num_workers': num_workers, 'pin_memory':True}
         self.train_loader = DataLoader(dataset, batch_size=batch_size, **kwargs, drop_last=True)
 
         data_list_total = [torch.from_numpy(np.array(d)).type(torch.float) for d in data_list_total]
         total_dataset = TensorDataset(data_list_total[0].float(), data_list_total[1].float())
-        kwargs = {'num_workers': 16, 'pin_memory':True}
+        kwargs = {'num_workers': num_workers, 'pin_memory':True}
         self.total_loader = DataLoader(total_dataset, batch_size=self.adata.X.shape[0], **kwargs)
 
         return self.model, self.train_loader
