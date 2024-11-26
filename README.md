@@ -4,4 +4,4 @@ SIDISH is a novel deep learning framework that integrates the high resolution of
 SIDISH offers a robust and scalable approach for advancing precision medicine, improving both biomarker discovery and therapeutic target identification.
 
 ## Overview 
-<img title="SIDISH Overview" alt="Alt text" src="SIDISH METHOD.png">
+[View the PDF](./SIDISH METOD.pdf)
