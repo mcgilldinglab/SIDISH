@@ -11,14 +11,14 @@ SIDISH bridges this gap by seamlessly integrating the depth of scRNA-seq with th
 The framework not only identifies high-risk disease-associated cells but also uncovers actionable biomarkers critical for therapeutic development. Additionally, its in-silico perturbation capability simulates gene-level interventions, providing insights into potential therapeutic targets and their impact on reducing high-risk cellular populations. These features position SIDISH as a transformative tool in precision medicine, enabling cost-effective, scalable, and clinically relevant analyses to advance biomarker discovery and therapeutic strategies.
 
 ## Key Capabilities
-- Integrated Data Analysis: Combines the cellular resolution of scRNA-seq with the scalability of bulk RNA-seq to bridge genetic and clinical insights.
+- **Integrated Data Analysis**: Combines the cellular resolution of scRNA-seq with the scalability of bulk RNA-seq to bridge genetic and clinical insights.
     
-- High-Risk Population Identification: Detects high-risk single-cell populations linked to poor survival outcomes in diseases.
+- **High-Risk Population Identification**: Detects high-risk single-cell populations linked to poor survival outcomes in diseases.
     
-- Biomarker Discovery: Uncovers actionable disease biomarkers through advanced feature selection and differential gene analysis.
+- **Biomarker Discovery**: Uncovers actionable disease biomarkers through advanced feature selection and differential gene analysis.
     
-- In-Silico Perturbation: Simulates gene knockouts to screen for therapeutic targets and assess their impact on disease survivability.
+- **In-Silico Perturbation**: Simulates gene knockouts to screen for therapeutic targets and assess their impact on disease survivability.
     
-- Scalable and Generalizable Framework: Adapts to large datasets while maintaining precision, validated on PDAC and TNBC datasets.
+- **Scalable and Generalizable Framework**: Adapts to large datasets while maintaining precision, validated on PDAC and TNBC datasets.
 
 
