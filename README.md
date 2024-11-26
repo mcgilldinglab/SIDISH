@@ -22,6 +22,11 @@ The framework not only identifies high-risk disease-associated cells but also un
 - **Scalable and Generalizable Framework**: Adapts to large datasets while maintaining precision, validated on PDAC and TNBC datasets.
 
 ## Tutorials:
+### Single cell and Bulk RNA-seq dataset preparation
+[Prepare your single-cell RNA-seq data and bulk RNA-seq with survival data to run SIDISH]
+
+
+
 
 ## Contact
 [Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)
