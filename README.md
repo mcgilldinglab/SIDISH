@@ -21,4 +21,7 @@ The framework not only identifies high-risk disease-associated cells but also un
     
 - **Scalable and Generalizable Framework**: Adapts to large datasets while maintaining precision, validated on PDAC and TNBC datasets.
 
+## Tutorials:
 
+## Contact
+[Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)
