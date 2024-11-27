@@ -21,6 +21,24 @@ The framework not only identifies high-risk disease-associated cells but also un
     
 - **Scalable and Generalizable Framework**: Adapts to large datasets while maintaining precision, validated on PDAC and TNBC datasets.
 
+## Installation
+
+Create a new conda environment
+```
+conda create -n sidish python=3.9
+conda activate sidish
+```
+
+### Current Installation Option: Install from Github
+
+Installing SIDISH directly from GitHub ensures you have the latest version. **(Please install directly from GitHub to use the provided Jupyter notebook for the tutorial.)**
+
+```
+git clone https://github.com/mcgilldinglab/SIDISH.git
+cd SIDISH
+pip install .
+```
+
 ## Tutorials:
 
 ### Running SIDISH on lung cancer dataset and visualization of results
