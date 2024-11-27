@@ -24,7 +24,7 @@ The framework not only identifies high-risk disease-associated cells but also un
 ## Tutorials:
 
 ### Running SIDISH on lung cancer dataset and visualization of results
-[Train SIDISH using lung cancer dataset and visualise your results] (https://github.com/mcgilldinglab/SIDISH/blob/main/TUTORIAL/tutorial.ipynb)
+[Train SIDISH using lung cancer dataset and visualise your results](https://github.com/mcgilldinglab/SIDISH/blob/main/TUTORIAL/tutorial.ipynb)
 
 ## Contact
 [Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)
