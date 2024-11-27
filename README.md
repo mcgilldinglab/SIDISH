@@ -29,7 +29,7 @@ conda create -n sidish python=3.9
 conda activate sidish
 ```
 
-### Current Installation Option: Install from Github
+### Installation Option: Install from Github
 
 Installing SIDISH directly from GitHub ensures you have the latest version. **(Please install directly from GitHub to use the provided Jupyter notebook for the tutorial.)**
 
