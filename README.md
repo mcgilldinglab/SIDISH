@@ -25,8 +25,11 @@ The framework not only identifies high-risk disease-associated cells but also un
 ### Single cell and Bulk RNA-seq dataset preparation
 [Prepare your single-cell RNA-seq data and bulk RNA-seq with survival data to run SIDISH]
 
+### Running SIDISH on lung cancer dataset and visualization of results
+[Train SIDISH using lung cancer dataset and visualise your results]
 
-
+### Performing in-silico perturbation using SIDISH
+[Predict potential therapeutic targets in lung cancer]
 
 ## Contact
 [Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)
