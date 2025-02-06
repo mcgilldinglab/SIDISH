@@ -6,12 +6,12 @@
 Welcome to SIDISH Documentation !
 =================================
 
-``SIDISH``  (Semi-supervised Iterative Deep Learning for Identifying Single-cell High-Risk Populations) is an advanced deep learning framework designed to revolutionize biomarker discovery and therapeutic target identification. By seamlessly integrating the comprehensive breadth of bulk RNA sequencing (bulk RNA-seq) with the granular depth of single-cell RNA sequencing (scRNA-seq), SIDISH empowers researchers to uncover High-Risk disease-associated cell populations, prognostic biomarkers, and novel therapeutic targets—laying the foundation for transformative advancements in **precision medicine**.
+``SIDISH``  (Semi-supervised Iterative Deep learning for Identifying Single-cell High-Risk populations) is an advanced deep learning framework designed to revolutionize biomarker discovery and therapeutic target identification. By seamlessly integrating the comprehensive breadth of bulk RNA sequencing (bulk RNA-seq) with the granular depth of single-cell RNA sequencing (scRNA-seq), SIDISH empowers researchers to uncover High-Risk disease-associated cell populations, prognostic biomarkers, and novel therapeutic targets—laying the foundation for transformative advancements in precision medicine. For more information, explore our `paper <#>`_.
 
 What is SIDISH?
 ===============
 
-At its core, SIDISH is a **semi-supervised iterative learning framework** that bridges molecular data with clinical outcomes. It leverages cutting-edge machine learning techniques to address one of the most pressing challenges in biomedical research: identifying the cellular and genetic drivers of poor patient outcomes.
+At its core, SIDISH is a semi-supervised iterative learning framework that bridges molecular data with clinical outcomes. It leverages cutting-edge machine learning techniques to address one of the most pressing challenges in biomedical research: identifying the cellular and genetic drivers of poor patient outcomes.
 
 SIDISH combines several key components to achieve this goal:
 
@@ -29,7 +29,7 @@ The SIDISH workflow is structured around four key phases:
 3. **Risk Stratification:** Identifying High-Risk cells and patient groups based on survival predictions, supported by robust statistical models for accurate risk categorization.
 4. **Iterative Learning and Weight Updates:** Incorporating feedback loops using feature attribution methods (e.g., SHAP values) to iteratively refine gene and cell-level predictions.
 
-Additionally, SIDISH features an **in silico perturbation module**, enabling virtual gene knockouts to simulate therapeutic interventions, predict drug responses, and prioritize targets for experimental validation.
+Additionally, SIDISH features an in silico perturbation module, enabling virtual gene knockouts to simulate therapeutic interventions, predict drug responses, and prioritize targets for experimental validation.
 
 .. image:: ../../SIDISH_9.jpg
    :width: 800
@@ -72,12 +72,10 @@ SIDISH revolutionizes biomarker discovery by unifying detailed single-cell insig
 
 SIDISH is designed for researchers, clinicians, and data scientists dedicated to advancing personalized medicine and improving patient outcomes.
 
-For more information, explore our `paper <#>`_.
-
 .. note::
 
    This project is under active development.
-   
+
 .. toctree::
    :maxdepth: 2
    :caption: Get Started with SIDISH:
