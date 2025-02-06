@@ -7,9 +7,12 @@ and classes in ``SIDISH``.
 
 
 Initial Setup
-~~~~~
+-------------
 
-.. automodule:: sidish
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. module:: SIDISH
+.. currentmodule:: SIDISH
+
+.. autosummary::
+   :toctree: api
+
+   SIDISH
