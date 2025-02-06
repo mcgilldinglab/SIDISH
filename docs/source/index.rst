@@ -31,21 +31,26 @@ The SIDISH workflow is structured around four key phases:
 
 Additionally, SIDISH features an **in silico perturbation module**, enabling virtual gene knockouts to simulate therapeutic interventions, predict drug responses, and prioritize targets for experimental validation.
 
-.. image:: SIDISH_9.jpg
+.. image:: ../../SIDISH_9.jpg
    :width: 800
    :alt: Method Overview
 
 
 SIDISH is run in four phases: 
-*a,* Phase 1: Extraction of Cellular Heterogeneity via a Variational Autoencoder (VAE) trained on scRNA-seq data to capture key biological patterns.  
-*b,* Phase 2: Survival Prediction Using Transfer Learning through a deep Cox regression model optimized for patient survival risk assessment.  
+*a,* Phase 1: Extraction of Cellular Heterogeneity via a Variational Autoencoder (VAE) trained on scRNA-seq data to capture key biological patterns.
+
+*b,* Phase 2: Survival Prediction Using Transfer Learning through a deep Cox regression model optimized for patient survival risk assessment. 
+
 *c,* Phase 3: Risk Prediction and Stratification using survival scores to identify High-Risk cells and patient groups.  
+
 *d,* Phase 4: Iterative Weight Updates leveraging SHAP-based feature attribution to enhance model performance.  
+
 *e,* In Silico Perturbation simulating gene knockouts to predict the impact of potential therapeutic targets.  
+
 *f,* Core Functionalities of SIDISH encompassing biomarker discovery, High-Risk cell identification, and precision medicine applications.
 
 Key Features
-============
+=============
 
 - **Iterative Learning Framework:** Continuously improves model accuracy in identifying High-Risk cell populations through a robust semi-supervised iterative approach.
 - **Deep Survival Analysis:** Employs deep Cox regression models for high-precision survival risk prediction, directly linking molecular data to patient outcomes.
