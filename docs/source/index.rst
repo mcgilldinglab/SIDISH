@@ -74,12 +74,13 @@ SIDISH is designed for researchers, clinicians, and data scientists dedicated to
 
 For more information, explore our `paper <#>`_.
 
-Get Started with SIDISH
-========================
+.. note::
 
+   This project is under active development.
+   
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Get Started with SIDISH:
 
    installation
    tutorials
