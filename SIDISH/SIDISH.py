@@ -24,30 +24,32 @@ from lifelines import KaplanMeierFitter
 
 import pyro
 
-def process_Data(X, Y, test_size, batch_size, seed):
+def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int, seed: int) -> tuple:
 
     """
-    Processes the Bulk data by splitting it into training and testing datasets, converting them to tensors, and creating data loaders for training and testing.
+    Splits bulk RNA-seq data into training and testing datasets, converts them to tensors, 
+    and creates DataLoaders.
 
     Parameters
     ----------
-    X : array-like
+    X : np.ndarray
         Bulk gene expression data.
-    Y : array-like
-        Survival + weight data, i.e [survival days, event, weight]
+    Y : np.ndarray
+        Survival data: [survival days, event, weight].
     test_size : float
-        Proportion of the dataset to include in the test split.
+        Proportion of dataset allocated to the test split.
     batch_size : int
-        Number of patients per batch to load.
+        Number of patients per batch.
     seed : int
         Random seed for reproducibility.
 
     Returns
     -------
-    train_loader : DataLoader
-        DataLoader for the training dataset.
-    test_loader : DataLoader
-        DataLoader for the testing dataset.
+    tuple
+        - torch.Tensor: X_train (Training feature matrix)
+        - torch.Tensor: X_test (Testing feature matrix)
+        - torch.Tensor: y_train (Training labels)
+        - torch.Tensor: y_test (Testing labels)
     """
 
     # Split data into train, val, test dataset
@@ -74,14 +76,62 @@ def process_Data(X, Y, test_size, batch_size, seed):
     return X_train, X_test, y_train, y_test
 
 class SIDISH:
+    """
+    SIDISH (Semi-Supervised Iterative Deep Learning for Identifying High-Risk Cells).
 
-    def __init__(self, adata, bulk,  device, seed=1234):
+    This framework integrates single-cell and bulk RNA-seq data to identify 
+    high-risk cancer cells and potential biomarkers.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Single-cell RNA-seq data.
+    bulk : pd.DataFrame
+        Bulk RNA-seq data.
+    device : str
+        Computation device ('cpu' or 'cuda').
+    seed : int, optional
+        Random seed for reproducibility (default=1234).
+    """
+
+    def __init__(self, adata, bulk, device: str, seed: int = 1234) -> None:
         self.adata = adata
         self.bulk = bulk
         self.device = device
         self.seed = seed
 
-    def init_Phase1(self, epochs, i_epochs, latent_size, layer_dims, batch_size, optimizer, lr, lr_3, dropout, type = 'Normal'):
+    def init_Phase1(self, epochs: int, i_epochs: int, latent_size: int, layer_dims: list, batch_size: int, optimizer: str, lr: float, lr_3: float, dropout: float, type: str = 'Normal') -> None:
+        """
+        Initializes Phase 1: training a Variational Autoencoder (VAE) on single-cell RNA-seq data.
+        
+        Parameters
+        ----------
+        epochs : int
+            Number of epochs for initial VAE training.
+        i_epochs : int
+            Number of iterations for retraining VAE.
+        latent_size : int
+            Latent dimension size.
+        layer_dims : list
+            List of hidden layer dimensions.
+        batch_size : int
+            Batch size.
+        optimizer : str
+            Optimizer for VAE training.
+        lr : float
+            Learning rate.
+        lr_3 : float
+            Learning rate for later iterations.
+        dropout : float
+            Dropout rate.
+        type : str, optional
+            Specifies dense or normal representation (default="Normal").
+
+        Returns
+        -------
+        None
+        """
+
         self.epochs_1 = epochs
         self.epochs_3 = i_epochs
         self.latent_size = latent_size
@@ -97,7 +147,29 @@ class SIDISH:
         self.W_matrix = np.ones(self.adata.X.shape)
         self.W_matrix_uncapped = np.ones(self.adata.X.shape)
 
-    def init_Phase2(self, epochs, hidden, lr, dropout, test_size, batch_size):
+    def init_Phase2(self, epochs: int, hidden: int, lr: float, dropout: float, test_size: float, batch_size: int) -> None:
+        """
+        Initializes Phase 2: training a Deep Cox model for survival analysis using bulk RNA-seq data.
+        
+        Parameters
+        ----------
+        epochs : int
+            Number of training epochs for Deep Cox model.
+        hidden : int
+            Number of neurons in the hidden layer.
+        lr : float
+            Learning rate for Deep Cox model.
+        dropout : float
+            Dropout rate for training.
+        test_size : float
+            Proportion of dataset allocated to the test split.
+        batch_size : int
+            Number of samples per batch.
+
+        Returns
+        -------
+        None
+        """
         self.epochs_2 = epochs
         self.hidden = hidden
         # self.iterations = iterations
@@ -113,7 +185,36 @@ class SIDISH:
         self.Y = self.bulk.iloc[:, :2].values
         self.X_train, self.X_test, self.y_train, self.y_test = process_Data(self.X, self.Y, test_size, batch_size, self.seed)
 
-    def train(self, iterations, percentile, steepness, path, num_workers = 8, show = True):
+    def train(self, iterations: int, percentile: float, steepness: float, path: str, num_workers: int = 8, show: bool = True) -> sc.AnnData:
+        """
+        Trains the SIDISH framework iteratively, refining the identification of high-risk cells.
+
+        This function iteratively updates high-risk cell classifications by integrating 
+        single-cell and bulk RNA-seq data. Each iteration includes:
+        - Training the VAE model on single-cell data.
+        - Training the Deep Cox model on bulk RNA-seq survival data.
+        - Updating weight matrices to improve high-risk cell identification.
+
+        Parameters
+        ----------
+        iterations : int
+            Number of training iterations.
+        percentile : float
+            Threshold percentile for defining high-risk cells.
+        steepness : float
+            Scaling factor for updating weights.
+        path : str
+            Directory for saving model checkpoints.
+        num_workers : int, optional
+            Number of parallel workers (default=8).
+        show : bool, optional
+            If True, displays training progress (default=True).
+
+        Returns
+        -------
+        sc.AnnData
+            Updated AnnData object containing the refined high-risk cell classifications.
+        """
         os.makedirs(path, exist_ok=True)
         self.path = path
         self.num_workers = num_workers
@@ -187,7 +288,15 @@ class SIDISH:
         return self.adata
 
     
-    def getEmbedding(self):
+    def getEmbedding(self) -> sc.AnnData:
+        """
+        Extracts latent representations from the trained VAE.
+        
+        Returns
+        -------
+        AnnData
+            Updated AnnData object with embeddings stored in `obsm['latent']`.
+        """
         self.TZ = []
         self.vae.model.eval()
         with torch.no_grad():
@@ -202,7 +311,25 @@ class SIDISH:
             self.adata.obsm['latent'] = np.array(self.TZ).astype(np.float32)
         return self.adata
         
-    def plotUMAP(self, resolution, figure_size = (8,6), fontsize= 12, cell_size =20):
+    def plotUMAP(self, resolution: float, figure_size: tuple = (8, 6), fontsize: int = 12, cell_size: int = 20) -> None:
+        """
+        Performs UMAP dimensionality reduction and Leiden clustering on the latent space.
+
+        Parameters
+        ----------
+        resolution : float
+            The resolution parameter for Leiden clustering.
+        figure_size : tuple, optional
+            Size of the generated UMAP plot (default=(8, 6)).
+        fontsize : int, optional
+            Font size for labels and legends (default=12).
+        cell_size : int, optional
+            Size of points in the scatter plot (default=20).
+
+        Returns
+        -------
+        None
+        """
         print("################### Calculating Neighbors #################")
         sc.pp.neighbors(self.adata, n_neighbors=30, use_rep="latent", random_state=self.seed)
 
@@ -409,7 +536,21 @@ class SIDISH:
         return percentage_dict, pvalue_dict
 
 
-    def run_Perturbation(self, n_jobs=4):
+    def run_Perturbation(self, n_jobs: int = 4) -> tuple:
+        """
+        Runs gene perturbation simulations using the in-silico perturbation module.
+
+        Parameters
+        ----------
+        n_jobs : int, optional
+            Number of parallel jobs for perturbation simulations (default=4).
+
+        Returns
+        -------
+        tuple
+            - dict: Mapping of genes to percentage change in high-risk cells.
+            - dict: Mapping of genes to chi-squared test p-values.
+        """
         perturbation = InSilicoPerturbation(self.adata)
         perturbation.setup_ppi_network(threshold=0.7)
         self.optimized_results = perturbation.run_parallel_processing(n_jobs=4)
