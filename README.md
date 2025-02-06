@@ -20,12 +20,9 @@
 ## Methods Overview
 ![SIDISH Overview](SIDISH_9.jpg)
 
-Understanding disease mechanisms at both cellular and clinical levels remains a major challenge in biomedical research.  
-**Single-cell RNA sequencing (scRNA-seq)** provides high-resolution insights into cellular heterogeneity but is costly and lacks large-scale clinical context. Conversely, **bulk RNA sequencing (bulk RNA-seq)** enables large-cohort studies but obscures critical cellular-level variations by averaging gene expression across thousands of cells.  
+Understanding disease mechanisms at both cellular and clinical levels remains a major challenge in biomedical research. Single-cell RNA sequencing (scRNA-seq) provides high-resolution insights into cellular heterogeneity but is costly and lacks large-scale clinical context. Conversely, bulk RNA sequencing (bulk RNA-seq) enables large-cohort studies but obscures critical cellular-level variations by averaging gene expression across thousands of cells.  
 
-**SIDISH (Semi-supervised Iterative Deep Learning for Identifying Single-cell High-risk Populations)** overcomes these limitations by integrating scRNA-seq and bulk RNA-seq through an advanced deep learning framework.  By iteratively refining high-risk cell predictions using **Variational Autoencoders (VAE), Deep Cox Regression, and SHAP-based feature selection**, SIDISH uncovers cellular subpopulations linked to poor survival while enabling robust patient-level risk assessment.  
-
-In addition to identifying high-risk cells, **SIDISH employs in-silico perturbation to simulate gene knockouts**, ranking potential **therapeutic targets** based on their impact on disease progression. This dual ability—**disease risk assessment and therapeutic prioritization**—positions SIDISH as a transformative tool in precision medicine, biomarker discovery, and drug development.  
+**SIDISH (Semi-supervised Iterative Deep Learning for Identifying Single-cell High-risk Populations)** overcomes these limitations by integrating scRNA-seq and bulk RNA-seq through an advanced deep learning framework.  By iteratively refining high-risk cell predictions using Variational Autoencoders (VAE), Deep Cox Regression, and SHAP-based feature selection, SIDISH uncovers cellular subpopulations linked to poor survival while enabling robust patient-level risk assessment. In addition to identifying high-risk cells, SIDISH employs in silico perturbation to simulate gene knockouts, ranking potential therapeutic target based on their impact on disease progression. This dual ability—disease risk assessment and therapeutic prioritization—positions SIDISH as a transformative tool in precision medicine, biomarker discovery, and drug development.  
 
 ## Prerequisites
 First, install [Anaconda](https://www.anaconda.com/). You can find specific instructions for different operating systems [here](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html).
