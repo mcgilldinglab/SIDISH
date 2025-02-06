@@ -22,5 +22,4 @@ setup(
         'shap==0.46.0',
         'statsmodels==0.14.4',
         'anndata==0.11.1',
-        'igraph==0.10.15',
         'imblearn==0.0'])
