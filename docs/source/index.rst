@@ -37,6 +37,7 @@ Additionally, SIDISH features an **in silico perturbation module**, enabling vir
 
 
 SIDISH is run in four phases: 
+
 *a,* Phase 1: Extraction of Cellular Heterogeneity via a Variational Autoencoder (VAE) trained on scRNA-seq data to capture key biological patterns.
 
 *b,* Phase 2: Survival Prediction Using Transfer Learning through a deep Cox regression model optimized for patient survival risk assessment. 
