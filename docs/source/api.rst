@@ -1,9 +1,13 @@
 SIDISH API Documentation
 ========================
 
-This API documentation outlines the correct usage of the `SIDISH` framework, which integrates single-cell and bulk RNA-seq data to identify high-risk cancer cells and potential biomarkers.
+This section provides detailed API documentation for all public functions and classes in ``SIDISH``.
 
-The documentation follows a **logical workflow**, ensuring each function is introduced in the correct order.
+Import SIDISH:
+
+```python
+from SIDISH import SIDISH
+```
 
 .. automodule:: SIDISH
     :members:
