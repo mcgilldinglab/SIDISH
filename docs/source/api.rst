@@ -12,13 +12,15 @@ This section provides detailed API documentation for all public functions and cl
 
 Initial Setup
 
-.. module:: SIDISH.SIDISH.__init__
+.. module:: SIDISH.SIDISH
 .. currentmodule:: SIDISH
 
 .. autosummary::
    :toctree: api
 
    SIDISH.SIDISH.__init__
+   SIDISH.SIDISH.init_Phase1
+   SIDISH.SIDISH.init_Phase2
 
 
 ~~~~~
