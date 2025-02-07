@@ -23,7 +23,8 @@ extensions = [
     'sphinx.ext.napoleon',  # Support for Google-style docstrings
     'sphinx.ext.viewcode',  # Include links to source code
     'sphinx.ext.todo',  # Support for TODOs in docs
-    'sphinx.ext.mathjax',  # Support for mathematical equations
+    'sphinx.ext.mathjax',
+    'sphinx_autodoc_typehints',  # Support for mathematical equations
 ]
 
 templates_path = ['_templates']
