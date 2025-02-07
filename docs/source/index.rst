@@ -82,7 +82,7 @@ SIDISH is designed for researchers, clinicians, and data scientists dedicated to
 
    installation
    tutorials
-   api
+   api.md
    release
    credits
    contact
