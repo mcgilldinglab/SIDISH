@@ -3,8 +3,8 @@ import os
 import sys
 import sphinx_autodoc_typehints
 
+sys.path.insert(0, os.path.abspath('../../SIDISH'))
 
-sys.path.insert(0, os.path.abspath('../..'))
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html

@@ -1,32 +1,17 @@
-======================
-SIDISH API Reference
-======================
+API Documentation
+=================
 
-.. automodule:: SIDISH
-   :members:
-   :undoc-members:
-   :show-inheritance:
+The SIDISH framework integrates single-cell and bulk RNA-seq data for identifying high-risk cells. This section provides detailed API documentation for all public functions and classes in the ``SIDISH`` module.
 
-Classes
-========
+Quick Start
+-----------
 
-SIDISH
-------
+To use the SIDISH framework, first import the module:
 
-.. autoclass:: SIDISH.SIDISH
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. code-block:: python
 
-Functions
-==========
+    from SIDISH import SIDISH
 
-process_Data
-------------
-
-.. autofunction:: SIDISH.process_Data
-
-.. autosummary::
-   :toctree: api
-   SIDISH.SIDISH.__init__
+Initial Setup
+-------------
 
