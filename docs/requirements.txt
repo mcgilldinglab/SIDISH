@@ -6,3 +6,15 @@ sphinx-rtd-theme
 sphinx-autodoc-typehints
 sphinx-copybutton
 nbsphinx
+
+
+torch
+numpy
+scipy
+pandas
+matplotlib
+joblib
+scikit-learn
+tqdm
+lifelines
+seaborn
