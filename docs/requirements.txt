@@ -18,3 +18,4 @@ scikit-learn
 tqdm
 lifelines
 seaborn
+pyro-ppl
