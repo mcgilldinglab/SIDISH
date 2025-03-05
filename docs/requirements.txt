@@ -3,3 +3,4 @@
 sphinxcontrib-applehelp==1.0.7
 sphinx
 sphinx-rtd-theme
+sphinx-autodoc-typehints
