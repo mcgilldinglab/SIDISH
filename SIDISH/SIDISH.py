@@ -1,7 +1,7 @@
-from .DEEP_COX import DEEPCOX as DeepCox
-from .VAE import VAE as VAE
-from .Utils import Utils as utils
-from .in_silico_perturbation import InSilicoPerturbation
+from SIDISH.DEEP_COX import DEEPCOX as DeepCox
+from SIDISH.VAE import VAE as VAE
+from SIDISH.Utils import Utils as utils
+from SIDISH.in_silico_perturbation import InSilicoPerturbation
 import pandas as pd
 import numpy as np
 import torch

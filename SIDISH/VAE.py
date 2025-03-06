@@ -1,4 +1,4 @@
-from .VAE_ARCHITECTURE import ARCHITECTURE as architecture
+from SIDISH.VAE_ARCHITECTURE import ARCHITECTURE as architecture
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader

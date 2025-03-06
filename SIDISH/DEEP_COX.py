@@ -6,7 +6,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from lifelines.utils import concordance_index
 import os
-from .DEEP_COX_ARCHITECTURE import DEEPCOX_ARCHITECTURE as deepCox
+from SIDISH.DEEP_COX_ARCHITECTURE import DEEPCOX_ARCHITECTURE as deepCox
 
 
 def loss_DeepCox(pred, events, durations, weight=None, train=True):

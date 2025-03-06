@@ -3,8 +3,8 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 from scipy.stats import chi2_contingency
 
-from .gene_perturbation_utils import GenePerturbationUtils
-from .ppi_network_handler import PPINetworkHandler
+from SIDISH.gene_perturbation_utils import GenePerturbationUtils
+from SIDISH.ppi_network_handler import PPINetworkHandler
 
 class InSilicoPerturbation:
     """
