@@ -24,8 +24,6 @@ Initialise SIDISH
 
 Functions in SIDISH
 -------------------
-.. module:: SIDISH.SIDISH
-.. currentmodule:: SIDISH
 .. autosummary::
    :toctree: api
 
