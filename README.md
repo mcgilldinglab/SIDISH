@@ -24,6 +24,9 @@ Understanding disease mechanisms at both cellular and clinical levels remains a 
 
 **SIDISH (Semi-supervised Iterative Deep Learning for Identifying Single-cell High-risk Populations)** overcomes these limitations by integrating scRNA-seq and bulk RNA-seq through an advanced deep learning framework.  By iteratively refining high-risk cell predictions using Variational Autoencoders (VAE), Deep Cox Regression, and SHAP-based feature selection, SIDISH uncovers cellular subpopulations linked to poor survival while enabling robust patient-level risk assessment. In addition to identifying high-risk cells, SIDISH employs in silico perturbation to simulate gene knockouts, ranking potential therapeutic target based on their impact on disease progression. This dual ability—disease risk assessment and therapeutic prioritization—positions SIDISH as a transformative tool in precision medicine, biomarker discovery, and drug development.  
 
+Explore comprehensive details, including API references, usage examples, and tutorials (in [Jupyter notebook](https://jupyter.org/) format), in our [full documentation](https://sidish.readthedocs.io/en/latest/api.html) and the README below.
+
+
 ## Prerequisites
 First, install [Anaconda](https://www.anaconda.com/). You can find specific instructions for different operating systems [here](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html).
 
