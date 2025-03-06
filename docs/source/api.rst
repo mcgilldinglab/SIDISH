@@ -24,35 +24,24 @@ Initialise SIDISH
 
 Functions in SIDISH
 -------------------
+.. module:: SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+   :toctree: api
 
-.. autofunction:: SIDISH.SIDISH.SIDISH.init_Phase1
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.init_Phase2
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.train
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.getEmbedding
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.plotUMAP
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.annotateCells
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.reload
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.get_percentille
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.get_embedding
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.set_adata
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.plot_HighRisk_UMAP
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.plot_CellType_UMAP
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.get_MarkerGenes
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.analyze_perturbation_effects
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.run_Perturbation
-
-.. autofunction:: SIDISH.SIDISH.SIDISH.plot_KM
+   SIDISH.init_Phase1
+   SIDISH.init_Phase2
+   SIDISH.train
+   SIDISH.getEmbedding
+   SIDISH.plotUMAP
+   SIDISH.annotateCells
+   SIDISH.reload
+   SIDISH.get_percentille
+   SIDISH.get_embedding
+   SIDISH.set_adata
+   SIDISH.plot_HighRisk_UMAP
+   SIDISH.plot_CellType_UMAP
+   SIDISH.get_MarkerGenes
+   SIDISH.analyze_perturbation_effects
+   SIDISH.run_Perturbation
+   SIDISH.plot_KM
