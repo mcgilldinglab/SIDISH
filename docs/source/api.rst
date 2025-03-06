@@ -12,13 +12,15 @@ To use the SIDISH framework, first import the module:
 
     from SIDISH import SIDISH
 
-Initalise SIDISH
-----------------
+Initialise SIDISH
+-----------------
+.. module:: SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+   :toctree: api
 
-.. autoclass:: SIDISH.SIDISH
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   SIDISH
+
 
 Functions in SIDISH
 -------------------
