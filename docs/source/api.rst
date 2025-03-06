@@ -20,28 +20,54 @@ Initialise SIDISH
    :toctree: api
 
    SIDISH
+   SIDISH.SIDISH.SIDISH.init_Phase1
+   SIDISH.SIDISH.SIDISH.init_Phase2
 
 
-Functions in SIDISH
+Train SIDISH Model
 -------------------
 .. module:: SIDISH.SIDISH.SIDISH
 .. currentmodule:: SIDISH
 .. autosummary::
    :toctree: api
 
-   SIDISH.SIDISH.SIDISH.init_Phase1
-   SIDISH.SIDISH.SIDISH.init_Phase2
    SIDISH.SIDISH.SIDISH.train
-   SIDISH.SIDISH.SIDISH.getEmbedding
-   SIDISH.SIDISH.SIDISH.plotUMAP
-   SIDISH.SIDISH.SIDISH.annotateCells
-   SIDISH.SIDISH.SIDISH.reload
-   SIDISH.SIDISH.SIDISH.get_percentille
-   SIDISH.SIDISH.SIDISH.get_embedding
-   SIDISH.SIDISH.SIDISH.set_adata
-   SIDISH.SIDISH.SIDISH.plot_HighRisk_UMAP
-   SIDISH.SIDISH.SIDISH.plot_CellType_UMAP
-   SIDISH.SIDISH.SIDISH.get_MarkerGenes
-   SIDISH.SIDISH.SIDISH.analyze_perturbation_effects
-   SIDISH.SIDISH.SIDISH.run_Perturbation
-   SIDISH.SIDISH.SIDISH.plot_KM
+
+
+Reload Trained SIDISH Model
+---------------------------
+.. module:: SIDISH.SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+    SIDISH.SIDISH.SIDISH.reload
+
+
+
+Reload Trained SIDISH Model
+---------------------------
+.. module:: SIDISH.SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+    SIDISH.SIDISH.SIDISH.reload
+
+
+Plotting Functions
+------------------
+.. module:: SIDISH.SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+    SIDISH.SIDISH.SIDISH.plotUMAP
+    SIDISH.SIDISH.SIDISH.plot_KM
+    SIDISH.SIDISH.SIDISH.plot_HighRisk_UMAP
+    SIDISH.SIDISH.SIDISH.plot_CellType_UMAP
+
+
+
+Perturbation 
+------------
+.. module:: SIDISH.SIDISH.SIDISH
+.. currentmodule:: SIDISH
+.. autosummary::
+    SIDISH.SIDISH.SIDISH.run_Perturbation
+    SIDISH.SIDISH.SIDISH.analyze_perturbation_effects
+    
