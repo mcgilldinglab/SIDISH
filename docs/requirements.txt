@@ -19,3 +19,4 @@ tqdm
 lifelines
 seaborn
 pyro-ppl
+torchvision
