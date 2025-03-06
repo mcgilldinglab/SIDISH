@@ -15,3 +15,7 @@ To use the SIDISH framework, first import the module:
 Initial Setup
 -------------
 
+.. automodule:: SIDISH
+   :members:
+   :undoc-members:
+   :show-inheritance:
