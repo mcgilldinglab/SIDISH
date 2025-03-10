@@ -48,7 +48,7 @@ Before installing SIDISH, ensure all required dependencies are installed. Run th
     pip install -r requirements.txt
     ```
 
-* __Step 2: Install SIDISH from PyPI__
+* __Step 2: Install SIDISH from PyPI__ 
 For the latest stable release, install SIDISH directly from PyPI:
     ```shell
     pip install SIDISH==1.0.0
