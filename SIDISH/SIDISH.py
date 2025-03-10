@@ -228,7 +228,7 @@ class SIDISH:
 
         # Initial training of VAE in iteration 1
         print("########################################## ITERATION 1 OUT OF {} ##########################################".format(iterations))
-        self.vae.train(show=show)
+        self.vae.train()
 
         # Save VAE for iterative process
         torch.save(self.vae.model.state_dict(), "{}vae_transfer".format(self.path))
@@ -272,7 +272,7 @@ class SIDISH:
                 self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_3, self.dropout_1,self.device, self.seed)
                 self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type,self.num_workers)
                 self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
-                self.vae.train(show=show)
+                self.vae.train()
 
                 # Save VAE for iterative process
                 torch.save(self.vae.model.state_dict(), "{}vae_transfer".format(self.path))

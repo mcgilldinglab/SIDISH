@@ -41,17 +41,17 @@ Finally, install the version of PyTorch compatible with your devices by followin
 
 ## Installation
 
- There are 2 options to install SIDISH.  
-* __Option 1: Install from download directory__   
-    download SIDISH from this repository, go to the downloaded SIDISH package root directory, and use the pip tool to install
-
+ There are 2 steps to install SIDISH.  
+* __Step 1: Install Dependencies__   
+Before installing SIDISH, ensure all required dependencies are installed. Run the following command in your terminal:
     ```shell
-    pip install -e .
+    pip install -r requirements.txt
     ```
-    
-* __Option 2: Install from Github__:    
+
+* __Step 2: Install SIDISH from PyPI__
+For the latest stable release, install SIDISH directly from PyPI:
     ```shell
-    pip install git+https://github.com/mcgilldinglab/SIDISH.git
+    pip install SIDISH==1.0.0
     ```
 
 ## Tutorials:

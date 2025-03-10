@@ -27,7 +27,7 @@ def extractFeature(adata,type='Normal'):
     test_X = ss_train.transform(test_X)
 
     classes = np.unique(train_y)
-    class_weights = compute_class_weight(class_weight="balanced", classes=[0, 1], y=train_y)
+    class_weights = compute_class_weight(class_weight="balanced", classes=np.array([0, 1]), y=train_y)
     class_weight_dict = dict(zip(classes, class_weights))
 
     ros = RandomUnderSampler(random_state=42)
