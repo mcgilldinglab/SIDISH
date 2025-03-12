@@ -57,8 +57,12 @@ For the latest stable release, install SIDISH directly from PyPI:
 ## Tutorials:
 To download the Lung Adenocarcinoma single-cell data as well as the bulk and paired survival data used in the tutorial, follow this [link](https://drive.google.com/file/d/1myrifg9f4fvFgunwpDzkPhlZ9AZUxLuX/view?usp=sharing).
 
+### Preprocesing single-cell and bulk data
+[Tutorial 0: Preprocess LUAD single-cell data and paired bulk RNA-seq and surivival data, for use to train SIDISH](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_0_data_preprocessing.ipynb)
+
+
 ### Running SIDISH on lung cancer dataset and visualization of results
-[Train SIDISH using lung cancer dataset and visualize your results](https://github.com/mcgilldinglab/SIDISH/blob/main/TUTORIAL/tutorial.ipynb)
+[Train SIDISH using lung cancer dataset and saving the results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_1_initializing_and_training_SIDISH.ipynb)
 
 ### Running SIDISH's In silico perturbation feature lung cancer dataset and visualization of results
 [Use SIDISH's in silico perturbation feature using lung cancer dataset and visualize your results](https://github.com/mcgilldinglab/SIDISH/blob/main/TUTORIAL/tutorial%203.ipynb)
