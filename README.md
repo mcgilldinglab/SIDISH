@@ -62,7 +62,7 @@ To download the Lung Adenocarcinoma single-cell data as well as the bulk and pai
 
 
 ### Running SIDISH on lung cancer dataset and visualization of results
-[Train SIDISH using lung cancer dataset and saving the results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_1_initializing_and_training_SIDISH.ipynb)
+[Tutorial 1: Train SIDISH using lung cancer dataset and saving the results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_1_initializing_and_training_SIDISH.ipynb)
 
 ### Running SIDISH's In silico perturbation feature lung cancer dataset and visualization of results
 [Use SIDISH's in silico perturbation feature using lung cancer dataset and visualize your results](https://github.com/mcgilldinglab/SIDISH/blob/main/TUTORIAL/tutorial%203.ipynb)
