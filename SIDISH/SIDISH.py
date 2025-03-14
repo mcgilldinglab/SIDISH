@@ -284,7 +284,7 @@ class SIDISH:
         return self.adata
 
     
-    def getEmbedding(self) -> sc.AnnData:
+    def getEmbedding_adata(self) -> sc.AnnData:
         """
         Extracts latent representations from the trained VAE.
         
@@ -387,6 +387,7 @@ class SIDISH:
         return self.percentile_cells
     
     def get_embedding(self, n_neighbors=30, resolution=None, celltype=True):
+        self.adata = self.getEmbedding()
         if celltype and resolution is not None:
             raise ValueError("Resolution should not be provided when celltype=True.")
 
