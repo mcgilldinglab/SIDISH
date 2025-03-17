@@ -28,9 +28,7 @@ Explore comprehensive details, including API references, usage examples, and tut
 
 
 ## Prerequisites
-First, install [Anaconda](https://www.anaconda.com/). You can find specific instructions for different operating systems [here](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html).
-
-Second, create a new conda environment and activate it:
+First, create a new conda environment and activate it:
 ```bash
 conda create --name sidish_env python=3.12
 ```
@@ -38,7 +36,7 @@ Activate the environment:
 ```bash
 conda activate sidish_env
 ```
-Finally, install the version of PyTorch compatible with your devices by following the [instructions on the official website](https://pytorch.org/get-started/locally/). 
+Then, install the version of PyTorch compatible with your devices by following the [instructions on the official website](https://pytorch.org/get-started/locally/). 
 
 ## Installation
 
