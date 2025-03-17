@@ -40,19 +40,47 @@ conda activate sidish
 Finally, install the version of PyTorch compatible with your devices by following the [instructions on the official website](https://pytorch.org/get-started/locally/). 
 
 ## Installation
+* __Step 1: Set up working environment with conda__   
+Create a conda environment:
+```bash
+conda create --name sidish_env python=3.12
+```
+Activate the environment:
+```bash
+conda activate sidish_env
+```
 
- There are 2 steps to install SIDISH.  
-* __Step 1: Install Dependencies__   
-Before installing SIDISH, ensure all required dependencies are installed. Run the following command in your terminal:
+* __Step 2: Install Dependencies__   
+Before installing SIDISH, ensure all required dependencies are installed in your environment. Run the following command in your terminal:
     ```shell
     pip install -r requirements.txt
     ```
+* __Step 3: Install SIDISH__ 
+There are 3 ways to install SIDISH:
 
-* __Step 2: Install SIDISH from PyPI__ 
-For the latest stable release, install SIDISH directly from PyPI:
-    ```shell
-    pip install SIDISH==1.0.0
-    ```
+**(Please install directly from GitHub to use the provided Jupyter notebooks for tutorials)**
+
+```
+git clone https://github.com/mcgilldinglab/SIDISH.git
+cd SIDISH
+```
+
+Installing the SIDISH Package
+1. Standard Installation
+```
+pip install .
+```
+
+2. Developer Mode Installation
+```
+pip install -e .
+```
+
+3. PyPI Installation
+   
+```
+pip install SIDISH==1.0.0
+```
 
 ## Tutorials:
 To download the Lung Adenocarcinoma single-cell data as well as the bulk and paired survival data used in the tutorial, follow this [link](https://drive.google.com/file/d/1myrifg9f4fvFgunwpDzkPhlZ9AZUxLuX/view?usp=sharing).
