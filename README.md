@@ -52,9 +52,9 @@ conda activate sidish_env
 
 * __Step 2: Install Dependencies__   
 Before installing SIDISH, ensure all required dependencies are installed in your environment. Run the following command in your terminal:
-    ```shell
-    pip install -r requirements.txt
-    ```
+```
+pip install -r requirements.txt
+```
 * __Step 3: Install SIDISH__ 
 There are 3 ways to install SIDISH:
 
