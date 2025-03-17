@@ -16,7 +16,7 @@ class PPINetworkHandler:
         self.adata = adata
         self.ppi_df = None
 
-    def load_network(self, threshold=0.7):
+    def load_network(self, threshold=0.8):
         """
         Load and process the PPI network from fixed files (integrating interactions from Hippie and STRING files).
 
@@ -34,7 +34,7 @@ class PPINetworkHandler:
           6. Returns the merged interactions as a pandas DataFrame.
 
         Parameters:
-            threshold: float, optional (default=0.7)
+            threshold: float, optional (default=0.8)
                 Threshold for filtering interactions.
 
         Returns:

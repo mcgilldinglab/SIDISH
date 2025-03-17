@@ -17,7 +17,10 @@ import matplotlib.pyplot as plt
 from lifelines import CoxPHFitter
 from lifelines.statistics import logrank_test
 from lifelines import KaplanMeierFitter
-
+import math
+from SIDISH.ppi_network_handler import PPINetworkHandler
+from SIDISH.gene_perturbation_utils import GenePerturbationUtils
+import seaborn as sns
 import pyro
 
 def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int, seed: int) -> tuple:
@@ -70,6 +73,30 @@ def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int
     test_loader = DataLoader(test_dataset, batch_size=X_test.shape[0], shuffle=False)
 
     return X_train, X_test, y_train, y_test
+
+def plot_umap(ax, umap_combined, palette):
+    """Plot UMAP scatter plot with the given color palette."""
+    sns.scatterplot(
+        x="UMAP1", 
+        y="UMAP2", 
+        data=umap_combined, 
+        hue='status', 
+        palette=palette, 
+        alpha=1, 
+        s=15, 
+        edgecolor='none', 
+        ax=ax
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_xlabel("UMAP1", fontsize=12)
+    ax.set_ylabel("UMAP2", fontsize=12)
+    
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    # Set the legend to the right margin
+    ax.legend(loc="upper left", fontsize=12, bbox_to_anchor=(1.05, 0.75), frameon=False)
 
 class SIDISH:
     """
@@ -553,11 +580,12 @@ class SIDISH:
             - dict: Mapping of genes to percentage change in high-risk cells.
             - dict: Mapping of genes to chi-squared test p-values.
         """
+        self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
         perturbation = InSilicoPerturbation(self.adata)
         perturbation.setup_ppi_network(threshold=0.7)
-        self.optimized_results = perturbation.run_parallel_processing(n_jobs=4)
-        percentage_dict, pvalue_dict = self.analyze_perturbation_effects()
-        return percentage_dict, pvalue_dict
+        self.optimized_results = perturbation.run_parallel_processing(self.adata, n_jobs=4)
+        self.percentage_dict, self.pvalue_dict = self.analyze_perturbation_effects()
+        return self.percentage_dict, self.pvalue_dict
 
     def plot_KM(self, penalizer=0.1, data_name="DATA", high_risk_label="High-Risk", background_label="Background", colors=("pink", "grey"), fontsize=12):
         """
@@ -644,3 +672,101 @@ class SIDISH:
         plt.tight_layout()
         plt.show()
 
+    def plot_top_perturbed_genes(self, gene_data, top_n=20):
+        """
+        Plots a barplot of the top N genes with the highest percentage reduction
+        in high-risk cells after in-silico perturbation.
+
+        Parameters:
+        - gene_data (dict): Dictionary of gene perturbation effects.
+        - top_n (int): Number of top genes to display. Default is 20.
+        """
+        # Sort the genes by their reduction percentages
+        self.top_genes = dict(sorted(gene_data.items(), key=lambda x: x[1], reverse=True)[:top_n])
+
+        # Plotting
+        plt.figure(figsize=(8, 8))
+        plt.barh(list(self.top_genes.keys()), list(self.top_genes.values()), color='brown')
+        plt.xlabel('% Reduction of High-Risk Cells')
+        plt.title(f'Top {top_n} Genes by Reduction in High-Risk Cells After Perturbation')
+        plt.gca().invert_yaxis()  # Invert y-axis to show the highest reduction on top
+        plt.show()
+
+
+    def generate_umap_plots(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
+        """
+        Generates UMAP visualizations for specified genes after in-silico perturbation.
+
+        Parameters:
+        - adata: AnnData object with latent embeddings.
+        - sidish: SIDISH object for annotation and processing.
+        - ppi_df: DataFrame containing the PPI network data.
+        - genes_of_interest (list): List of genes to visualize.
+        - output_path: Filepath for saving the generated UMAP plot.
+        - seed: Random seed for reproducibility. Default is 42.
+        """
+        if not isinstance(genes_of_interest, list):
+            raise TypeError("genes_of_interest must be a list of gene names.")
+
+        self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
+        self.set_adata()
+
+        # Dynamic subplot layout
+        n_genes = len(genes_of_interest)
+        n_cols = 2
+        n_rows = math.ceil(n_genes / n_cols)
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 5 * n_rows), squeeze=False)
+        axs = axs.flatten()
+
+        for gene, ax in zip(genes_of_interest, axs):
+            self.ppi_handler = PPINetworkHandler(self.adata)
+            self.ppi_handler.load_network(threshold)
+            
+            direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(gene)
+            neighbors = direct_neighbors + indirect_neighbors
+            network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
+            
+            
+            if not network_df.empty:
+                adata_p = GenePerturbationUtils.adjust_expression(self.adata, gene, network_df)
+            else:
+                adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, gene).tocsr()
+
+            adata_p = self.annotateCells(adata_p, self.percentile_cells, "no")
+
+            h = adata_p[adata_p.obs.SIDISH == "h"].shape[0]
+            b = adata_p[adata_p.obs.SIDISH == "b"].shape[0]
+
+            adata_p.obs["SIDISH_"] = ["High risk cells ({})".format(h) if i == "h" else "Background cells ({})".format(b) for i in adata_p.obs.SIDISH]
+
+            umap_combined = pd.DataFrame(self.adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"])
+            umap_combined.index = self.adata.obs.index.values
+            umap_combined['risk'] = self.adata.obs['SIDISH'].values
+
+            b_c = (self.adata.obs.SIDISH == 'b').sum()
+            umap_combined['status'] = 'Background to Background ({})'.format(b_c)
+
+            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = 'High-Risk to High-Risk ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum())
+            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'b'), 'status'] = 'High-Risk to Background ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum())
+            umap_combined.loc[(umap_combined['risk'] == 'b') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = 'Background to High-Risk ({})'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum())
+
+            palette = {
+                'Background to Background ({})'.format(b_c): 'darkgray',
+                'High-Risk to High-Risk ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum()): 'red',
+                'High-Risk to Background ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum()): 'cyan',
+                'Background to High-Risk ({})'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum()): 'purple'
+            }
+
+            plot_umap(ax, umap_combined, palette)
+            ax.set_title("In-Silico Knockout of {} \n ({:.1f}% High-Risk Cell Reduction)".format(
+                gene,
+                (((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum() / ((self.adata.obs.SIDISH == "h")).sum()) * 100
+            ), fontsize=14, y=0.96)
+
+        # Remove empty subplots
+        if len(axs) > n_genes:
+            for ax in axs[n_genes:]:
+                ax.axis('off')
+
+        plt.show()

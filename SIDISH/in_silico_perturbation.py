@@ -36,7 +36,7 @@ class InSilicoPerturbation:
         self.ppi_handler = PPINetworkHandler(adata)
         self.optimized_results = None
 
-    def setup_ppi_network(self, threshold=0.7):
+    def setup_ppi_network(self, threshold=0.8):
         """
         Initialize the PPI network.
 
@@ -56,7 +56,7 @@ class InSilicoPerturbation:
         """
         return self.ppi_handler.load_network(threshold)
 
-    def process_gene(self, gene):
+    def process_gene(self, adata, gene):
         """
         Process a single gene for perturbation by knocking it out along with its network neighbors.
 
@@ -77,15 +77,15 @@ class InSilicoPerturbation:
         ]
 
         if network_df.empty:
-            adata_p = self.adata.copy()
-            X_ = GenePerturbationUtils.knockout_gene(self.adata, gene)
+            adata_p = adata.copy()
+            X_ = GenePerturbationUtils.knockout_gene(adata, gene)
             adata_p.X = X_.tocsr()
         else:
-            adata_p = GenePerturbationUtils.adjust_expression(self.adata, gene, network_df)
+            adata_p = GenePerturbationUtils.adjust_expression(adata, gene, network_df)
 
         return adata_p
 
-    def run_parallel_processing(self, n_jobs=4):
+    def run_parallel_processing(self, adata, n_jobs=4):
         """
         Run gene perturbation processing in parallel.
 
@@ -97,7 +97,7 @@ class InSilicoPerturbation:
             Sets the 'optimized_results' attribute with the list of perturbed AnnData objects.
         """
         self.optimized_results = Parallel(n_jobs=n_jobs)(
-            delayed(self.process_gene)(gene)
+            delayed(self.process_gene)(adata, gene)
             for gene in tqdm(self.genes, desc="Processing Genes")
         )
 
