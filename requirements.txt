@@ -24,3 +24,4 @@ shap==0.46.0
 statsmodels==0.14.4
 tqdm==4.67.1
 umap-learn==0.5.7
+torchvision==0.21.0

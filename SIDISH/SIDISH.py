@@ -387,11 +387,10 @@ class SIDISH:
         return self.percentile_cells
     
     def get_embedding(self, n_neighbors=30, resolution=None, celltype=True):
-        self.adata = self.getEmbedding()
         if celltype and resolution is not None:
             raise ValueError("Resolution should not be provided when celltype=True.")
-
-        self.adata = self.vae.getEmbedding()
+        
+        self.adata = self.getEmbedding_adata()
         sc.pp.neighbors(self.adata, n_neighbors=n_neighbors, use_rep="latent", random_state=self.seed)
         sc.tl.umap(self.adata, random_state=self.seed)
 
@@ -414,9 +413,12 @@ class SIDISH:
         fn = "{}adata_SIDISH_embedding.h5ad".format(self.path)
         self.adata.write_h5ad(fn, compression="gzip")
 
-        return self.adata
+        
     
-    def plot_HighRisk_UMAP(self, size= 10):
+    def plot_HighRisk_UMAP(self, size= 10, resolution=None, celltype=True):
+        self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
+        self.set_adata()
+        
         plt.figure(figsize=(8, 6))
         plt.rcParams["font.family"] = "sans-serif"
         plt.rcParams["font.size"] = 12
@@ -429,7 +431,10 @@ class SIDISH:
         plt.tight_layout()
         plt.show()
 
-    def plot_CellType_UMAP(self, size = 10):
+    def plot_CellType_UMAP(self, size = 10, resolution=None, celltype=True):
+        self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
+        self.set_adata()
+        
         plt.figure(figsize=(8,6))
         plt.rcParams["font.family"] = "sans-serif"
         plt.rcParams["font.size"] = 12

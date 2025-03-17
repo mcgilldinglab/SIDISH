@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.1
 Name: SIDISH
 Version: 1.0.0
 Summary: SIDISH package 1.0.0
@@ -21,9 +21,3 @@ Requires-Dist: shap==0.46.0
 Requires-Dist: statsmodels==0.14.4
 Requires-Dist: anndata==0.11.1
 Requires-Dist: imblearn==0.0
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: home-page
-Dynamic: requires-dist
-Dynamic: summary
