@@ -31,17 +31,6 @@ Explore comprehensive details, including API references, usage examples, and tut
 First, install [Anaconda](https://www.anaconda.com/). You can find specific instructions for different operating systems [here](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html).
 
 Second, create a new conda environment and activate it:
-```
-conda create -n sidish python=3.9
-```
-```
-conda activate sidish
-```
-Finally, install the version of PyTorch compatible with your devices by following the [instructions on the official website](https://pytorch.org/get-started/locally/). 
-
-## Installation
-### Step 1: Set up working environment with conda 
-Create a conda environment:
 ```bash
 conda create --name sidish_env python=3.12
 ```
@@ -49,13 +38,16 @@ Activate the environment:
 ```bash
 conda activate sidish_env
 ```
+Finally, install the version of PyTorch compatible with your devices by following the [instructions on the official website](https://pytorch.org/get-started/locally/). 
 
-### Step 2: Install Dependencies
+## Installation
+
+### Step 1: Install Dependencies
 Before installing SIDISH, ensure all required dependencies are installed in your environment. Run the following command in your terminal:
 ```
 pip install -r requirements.txt
 ```
-### Step 3: Install SIDISH 
+### Step 2: Install SIDISH 
 There are 3 ways to install SIDISH:
 
 **(Please install directly from GitHub to use the provided Jupyter notebooks for tutorials)**
