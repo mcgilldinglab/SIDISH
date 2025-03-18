@@ -43,7 +43,7 @@ class PPINetworkHandler:
                 "Source", "Target", and "Weight".
         """
         # Compute paths relative to this file's directory:
-        base_dir = os.path.dirname('../../DATA/')
+        base_dir = os.path.dirname('../data/')
         ppi_dir = os.path.join(base_dir, "PPI")
         info_file = os.path.join(ppi_dir, "9606.protein.info.v11.5.txt")
         links_file = os.path.join(ppi_dir, "9606.protein.links.v11.5.txt")

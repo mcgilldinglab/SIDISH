@@ -693,7 +693,7 @@ class SIDISH:
         plt.show()
 
 
-    def generate_umap_plots(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
+    def plot_perturbation_UMAP(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
         """
         Generates UMAP visualizations for specified genes after in-silico perturbation.
 
