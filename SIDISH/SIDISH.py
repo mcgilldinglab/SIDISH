@@ -848,6 +848,7 @@ class SIDISH:
     def plot_double_Perturbation_Heatmap(self, percentage_double_dict):
             
         df = self.percentage_df.iloc[:20].sort_values(by='Genes')
+        df = df.sort_values(by="Scores", ascending=False)
 
 
         # Filter out zero values and create a DataFrame for the gene pairs
@@ -858,6 +859,10 @@ class SIDISH:
 
         # Pivot the DataFrame to create a matrix suitable for a heatmap
         heatmap_matrix = heatmap_data.pivot(index='Gene1', columns='Gene2', values='Value')
+        sorted_genes = df.Genes.values
+
+        # Reordering rows and columns of the matrix
+        heatmap_matrix = heatmap_matrix.loc[sorted_genes, sorted_genes]
 
         # Create the figure and subplots with different width ratios
         fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 15]}, figsize=(8, 6))  # Reduce width for 1D heatmap
