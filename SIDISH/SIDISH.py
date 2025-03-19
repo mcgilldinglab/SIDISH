@@ -22,6 +22,10 @@ from SIDISH.ppi_network_handler import PPINetworkHandler
 from SIDISH.gene_perturbation_utils import GenePerturbationUtils
 import seaborn as sns
 import pyro
+import itertools
+from scipy.stats import chi2_contingency
+from statsmodels.stats.multitest import multipletests
+import copy
 
 def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int, seed: int) -> tuple:
 
@@ -74,19 +78,20 @@ def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int
 
     return X_train, X_test, y_train, y_test
 
-def plot_umap(ax, umap_combined, palette):
+def plot_umap(ax, umap_combined, palette, percentage_change_):
     """Plot UMAP scatter plot with the given color palette."""
     sns.scatterplot(
         x="UMAP1", 
         y="UMAP2", 
-        data=umap_combined, 
         hue='status', 
+        data=umap_combined, 
         palette=palette, 
+        edgecolor='none',
         alpha=1, 
         s=15, 
-        edgecolor='none', 
         ax=ax
     )
+    
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.set_xlabel("UMAP1", fontsize=12)
@@ -94,9 +99,11 @@ def plot_umap(ax, umap_combined, palette):
     
     ax.set_xticks([])
     ax.set_yticks([])
-    
-    # Set the legend to the right margin
-    ax.legend(loc="upper left", fontsize=12, bbox_to_anchor=(1.05, 0.75), frameon=False)
+    # Update legend to include perturbation score
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(plt.Line2D([0], [0]))
+    labels.append(f"{percentage_change_:.2f}%")
+    ax.legend(handles, labels, loc="upper left", fontsize=12, bbox_to_anchor=(0.95, 0.75), frameon=False)
 
 class SIDISH:
     """
@@ -522,22 +529,18 @@ class SIDISH:
                   - percentage_dict: dict mapping gene to percentage change.
                   - pvalue_dict: dict mapping gene to chi-squared test p-value.
         """
-        percentage_dict = {}
-        pvalue_dict = {}
-        b_dict = {}
-        b_to_h_dict = {}
-        h_to_b_dict = {}
-        h_dict = {}
+        self.percentage_dict = {}
+        self.pvalue_dict = {}
+        self.b_dict = {}
+        self.b_to_h_dict = {}
+        self.h_to_b_dict = {}
+        self.h_dict = {}
 
         self.genes = list(self.adata.var.index)
 
         n_hcells = (self.adata.obs.SIDISH == "h").sum()
 
-        for gene, data in tqdm(
-            zip(self.genes, self.optimized_results),
-            total=len(self.genes),
-            desc="Calculating Stats"
-        ):
+        for gene, data in tqdm(zip(self.genes, self.optimized_results),total=len(self.genes),desc="Calculating Stats"):
             # Annotate the perturbed cells
             adata_p = self.annotateCells(data, self.percentile_cells, "no")
 
@@ -545,13 +548,13 @@ class SIDISH:
             h_to_b = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "b")).sum()
             b_to_h = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "h")).sum()
 
-            h_to_b_dict[gene] = h_to_b
-            b_to_h_dict[gene] = b_to_h
-            b_dict[gene] = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "b")).sum()
-            h_dict[gene] = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "h")).sum()
+            self.h_to_b_dict[gene] = h_to_b
+            self.b_to_h_dict[gene] = b_to_h
+            self.b_dict[gene] = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "b")).sum()
+            self.h_dict[gene] = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "h")).sum()
 
             # Compute percentage change
-            percentage_dict[gene] = ((h_to_b - b_to_h) / n_hcells) * 100
+            self.percentage_dict[gene] = ((h_to_b - b_to_h) / n_hcells) * 100
 
             # Construct contingency table and perform chi-squared test
             val = n_hcells - (h_to_b - b_to_h)
@@ -560,9 +563,9 @@ class SIDISH:
                 [val, adata_p.shape[0] - val]
             ]
             _, p_value, _, _ = chi2_contingency(contingency_table, correction=True)
-            pvalue_dict[gene] = p_value
+            self.pvalue_dict[gene] = p_value
 
-        return percentage_dict, pvalue_dict
+        return self.percentage_dict, self.pvalue_dict
 
 
     def run_Perturbation(self, n_jobs: int = 4) -> tuple:
@@ -581,12 +584,72 @@ class SIDISH:
             - dict: Mapping of genes to chi-squared test p-values.
         """
         self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
+        self.genes = list(self.adata.var.index)
+        
+        self.percentage_dict = {}
+        self.pvalue_dict = {}
+        
+        # Precompute values used multiple times
+        n_hcells = (self.adata.obs.SIDISH == "h").sum()
+        n_total_cells =self.adata.shape[0]  # Total number of cells
+        h_risk_cells_sum = (self.adata.obs.SIDISH == "h").values.sum()  # Cached for reuse
+                
         perturbation = InSilicoPerturbation(self.adata)
-        perturbation.setup_ppi_network(threshold=0.7)
-        self.optimized_results = perturbation.run_parallel_processing(self.adata, n_jobs=4)
+        perturbation.setup_ppi_network(threshold=0.8)
+        self.optimized_results = perturbation.run_parallel_processing(self.adata,self.genes, n_jobs=4)
         self.percentage_dict, self.pvalue_dict = self.analyze_perturbation_effects()
+        
         return self.percentage_dict, self.pvalue_dict
 
+    def run_double_Perturbation(self, top_n = 20, threshold=0.8):
+        
+        pvals = list(self.pvalue_dict.values())
+        corrected_pvals = multipletests(pvals, alpha=0.05, method='fdr_bh')
+        corrected_pvalue_dict = dict(zip(self.pvalue_dict.keys(), corrected_pvals[1]))
+        pvalue_df = pd.DataFrame(list(corrected_pvalue_dict.items()), columns=["Gene", "Pvalue"])
+        pvalue_df.sort_values(by='Pvalue',ascending=True, inplace=True)
+        pvalue_df = pvalue_df[pvalue_df.Pvalue < 0.05]
+        
+        self.top_genes = pvalue_df.Gene.values
+        
+        self.percentage_df = pd.DataFrame([self.percentage_dict], index=None).T.reset_index()
+        self.percentage_df.columns = ["Genes", "Scores"]
+        self.percentage_df.sort_values(by=["Scores"], ascending=False, inplace=True)
+        
+        self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
+        
+        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
+        n_hcells = (self.adata.obs.SIDISH == "h").sum()
+        self.percentage_double_dict = {}
+        self.pvalue_double_dict = {}
+        self.ppi_handler = PPINetworkHandler(self.adata)
+        self.ppi_handler.load_network(threshold)
+        
+        for combination in tqdm(all_combinations[:]):
+            adata_p = self.adata.copy()
+            for g in combination:
+                direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(g)
+                neighbors = direct_neighbors + indirect_neighbors
+                network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
+                    
+                if not network_df.empty:
+                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
+                else:
+                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
+
+            adata_p = self.annotateCells(adata_p, self.percentile_cells, "no")
+            h_to_b = ((self.adata.obs['SIDISH'] == 'h') & (adata_p.obs['SIDISH'] == 'b')).sum()
+            b_to_h = ((self.adata.obs['SIDISH'] == 'b') & (adata_p.obs['SIDISH'] == 'h')).sum()
+            
+            val = (self.adata.obs.SIDISH == "h").values.sum() - (h_to_b - b_to_h)
+            contingency_table = [[n_hcells, self.adata.shape[0] - n_hcells], [val, adata_p.shape[0] - val]]
+
+            chi2, p_value, dof, expected = chi2_contingency(contingency_table, correction=False)
+            self.percentage_double_dict["{}+{}".format(combination[0], combination[1])] = ((h_to_b - b_to_h) / (self.adata.obs.SIDISH == "h").values.sum())*100
+            self.pvalue_double_dict["{}+{}".format(combination[0], combination[1])] = p_value
+        return self.percentage_double_dict, self.pvalue_double_dict
+    
+        
     def plot_KM(self, penalizer=0.1, data_name="DATA", high_risk_label="High-Risk", background_label="Background", colors=("pink", "grey"), fontsize=12):
         """
         Plot Kaplan-Meier survival curves for high-risk and background patient groups.
@@ -682,11 +745,15 @@ class SIDISH:
         - top_n (int): Number of top genes to display. Default is 20.
         """
         # Sort the genes by their reduction percentages
-        self.top_genes = dict(sorted(gene_data.items(), key=lambda x: x[1], reverse=True)[:top_n])
-
+        #self.top_genes = dict(sorted(gene_data.items(), key=lambda x: x[1], reverse=True)[:top_n])
+        percentage_df = pd.DataFrame([self.percentage_dict], index=None).T.reset_index()
+        percentage_df.columns = ["Genes", "Scores"]
+        percentage_df.sort_values(by=["Scores"], ascending=False, inplace=True)
+        percentage_df = percentage_df[:top_n]
+        
         # Plotting
         plt.figure(figsize=(8, 8))
-        plt.barh(list(self.top_genes.keys()), list(self.top_genes.values()), color='brown')
+        plt.barh(percentage_df.Genes.values,percentage_df.Scores.values, color='brown')
         plt.xlabel('% Reduction of High-Risk Cells')
         plt.title(f'Top {top_n} Genes by Reduction in High-Risk Cells After Perturbation')
         plt.gca().invert_yaxis()  # Invert y-axis to show the highest reduction on top
@@ -708,18 +775,17 @@ class SIDISH:
         if not isinstance(genes_of_interest, list):
             raise TypeError("genes_of_interest must be a list of gene names.")
 
-        self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
-        self.set_adata()
-
         # Dynamic subplot layout
         n_genes = len(genes_of_interest)
         n_cols = 2
         n_rows = math.ceil(n_genes / n_cols)
 
-        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 5 * n_rows), squeeze=False)
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 4.5 * n_rows), squeeze=False)
         axs = axs.flatten()
 
         for gene, ax in zip(genes_of_interest, axs):
+            self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
+            
             self.ppi_handler = PPINetworkHandler(self.adata)
             self.ppi_handler.load_network(threshold)
             
@@ -727,42 +793,50 @@ class SIDISH:
             neighbors = direct_neighbors + indirect_neighbors
             network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
             
-            
             if not network_df.empty:
                 adata_p = GenePerturbationUtils.adjust_expression(self.adata, gene, network_df)
             else:
                 adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, gene).tocsr()
 
             adata_p = self.annotateCells(adata_p, self.percentile_cells, "no")
+            h_to_b = ((self.adata.obs['SIDISH'] == 'h') & (adata_p.obs['SIDISH'] == 'b')).sum()
+            b_to_h = ((self.adata.obs['SIDISH'] == 'b') & (adata_p.obs['SIDISH'] == 'h')).sum()
+
+
+            # Calculate the percentage change and store in the dictionary
+            percentage_change = ((h_to_b - b_to_h) / (self.adata.obs.SIDISH == "h").values.sum()) * 100
+            
 
             h = adata_p[adata_p.obs.SIDISH == "h"].shape[0]
             b = adata_p[adata_p.obs.SIDISH == "b"].shape[0]
 
             adata_p.obs["SIDISH_"] = ["High risk cells ({})".format(h) if i == "h" else "Background cells ({})".format(b) for i in adata_p.obs.SIDISH]
-
+            
+            self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
+            self.set_adata()
+            
             umap_combined = pd.DataFrame(self.adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"])
             umap_combined.index = self.adata.obs.index.values
             umap_combined['risk'] = self.adata.obs['SIDISH'].values
 
-            b_c = (self.adata.obs.SIDISH == 'b').sum()
-            umap_combined['status'] = 'Background to Background ({})'.format(b_c)
+            umap_combined['status'] = '{}'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "b")).sum())
 
-            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = 'High-Risk to High-Risk ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum())
-            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'b'), 'status'] = 'High-Risk to Background ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum())
-            umap_combined.loc[(umap_combined['risk'] == 'b') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = 'Background to High-Risk ({})'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum())
+            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = '{}'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum())
+            umap_combined.loc[(umap_combined['risk'] == 'h') & (adata_p.obs['SIDISH'] == 'b'), 'status'] = '{}'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum())
+            umap_combined.loc[(umap_combined['risk'] == 'b') & (adata_p.obs['SIDISH'] == 'h'), 'status'] = '{}'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum())
 
             palette = {
-                'Background to Background ({})'.format(b_c): 'darkgray',
-                'High-Risk to High-Risk ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum()): 'red',
-                'High-Risk to Background ({})'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum()): 'cyan',
-                'Background to High-Risk ({})'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum()): 'purple'
+                '{}'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "b")).sum()): 'darkgray',
+                '{}'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "h")).sum()): 'red',
+                '{}'.format(((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum()): '#3DB1EA',
+                '{}'.format(((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum()): 'purple',
+                '{}'.format(percentage_change): 'white'
             }
+            
 
-            plot_umap(ax, umap_combined, palette)
-            ax.set_title("In-Silico Knockout of {} \n ({:.1f}% High-Risk Cell Reduction)".format(
-                gene,
-                (((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum() / ((self.adata.obs.SIDISH == "h")).sum()) * 100
-            ), fontsize=14, y=0.96)
+            plot_umap(ax, umap_combined, palette, percentage_change)
+            ax.set_title("In-Silico Knockout of {}".format(gene), fontsize=12, y=0.96)
+        
 
         # Remove empty subplots
         if len(axs) > n_genes:
@@ -770,3 +844,38 @@ class SIDISH:
                 ax.axis('off')
 
         plt.show()
+
+    def plot_double_Perturbation_Heatmap(self, percentage_double_dict):
+            
+        df = self.percentage_df.iloc[:20].sort_values(by='Genes')
+
+
+        # Filter out zero values and create a DataFrame for the gene pairs
+        double_dict = percentage_double_dict
+        double_dict = {k: v for k, v in double_dict.items() if v != 0}
+        heatmap_data = pd.DataFrame([{'Gene1': k.split('+')[0], 'Gene2': k.split('+')[1], 'Value': v} for k, v in double_dict.items()])
+        heatmap_data = heatmap_data.sort_values(by="Value", ascending=True)
+
+        # Pivot the DataFrame to create a matrix suitable for a heatmap
+        heatmap_matrix = heatmap_data.pivot(index='Gene1', columns='Gene2', values='Value')
+
+        # Create the figure and subplots with different width ratios
+        fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 15]}, figsize=(8, 6))  # Reduce width for 1D heatmap
+
+        # Plot 1D heatmap on the first axis (ax1)
+        sns.heatmap(df[['Scores']], cmap='Reds', cbar=True, yticklabels=df['Genes'], xticklabels=False, ax=ax1)
+        ax1.set_title('', fontsize=14)
+        ax1.set_xlabel('')  # No x-axis label
+        ax1.set_ylabel('')
+
+        # Plot 2D heatmap on the second axis (ax2)
+        sns.heatmap(heatmap_matrix, cmap='Reds', annot=False, ax=ax2)
+        ax2.set_title('')
+        ax2.set_xlabel('')
+        ax2.set_ylabel('')
+
+        plt.show()
+
+
+
+    

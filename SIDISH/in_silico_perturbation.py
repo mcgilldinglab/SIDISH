@@ -28,8 +28,6 @@ class InSilicoPerturbation:
         Parameters:
             adata: AnnData
                 An AnnData object containing gene expression data.
-            sidish: Object
-                An object with methods for cell annotation.
         """
         self.adata = adata
         self.genes = list(adata.var.index)
@@ -85,7 +83,7 @@ class InSilicoPerturbation:
 
         return adata_p
 
-    def run_parallel_processing(self, adata, n_jobs=4):
+    def run_parallel_processing(self, adata, genes, n_jobs=4):
         """
         Run gene perturbation processing in parallel.
 
@@ -98,7 +96,7 @@ class InSilicoPerturbation:
         """
         self.optimized_results = Parallel(n_jobs=n_jobs)(
             delayed(self.process_gene)(adata, gene)
-            for gene in tqdm(self.genes, desc="Processing Genes")
+            for gene in tqdm(genes, desc="Processing Genes", leave=True)
         )
 
         return self.optimized_results

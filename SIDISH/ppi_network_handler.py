@@ -43,75 +43,54 @@ class PPINetworkHandler:
                 "Source", "Target", and "Weight".
         """
         # Compute paths relative to this file's directory:
-        base_dir = os.path.dirname('../data/')
-        ppi_dir = os.path.join(base_dir, "PPI")
-        info_file = os.path.join(ppi_dir, "9606.protein.info.v11.5.txt")
-        links_file = os.path.join(ppi_dir, "9606.protein.links.v11.5.txt")
-        hippie_file = os.path.join(ppi_dir, "hippie_current.txt")
-        
-        # Get the set of genes from the AnnData object.
-        adatagene = set(self.adata.var.index.values)
+        hippiefile = open("../data/PPI/hippie_current.txt")
+        hippiefile = hippiefile.readlines()
+        stringfile = open("../data/PPI/9606.protein.links.v11.5.txt")
+        stringfile = stringfile.readlines()
+        stringinfo = open("../data/PPI/9606.protein.info.v11.5.txt")
+        stringinfo = stringinfo.readlines()
 
-        # --- Build gene mapping from STRING info file ---
-        with open(info_file, "r") as f:
-            lines = f.readlines()[1:]  # Skip header
-            gene_map = {
-                line.split("\t")[0]: line.split("\t")[1].strip()
-                for line in lines
-                if line.split("\t")[1].strip() in adatagene
-            }
-
-        # --- Process Hippie file ---
+        adatagene = self.adata.var.index.values.tolist()
+        stringinfo_dict = {}
+        for each in stringinfo[1:]:
+            each = each.split("\t")
+            if each[1] in adatagene:
+                stringinfo_dict[each[0]] = each[1]
         newhippie = []
-        with open(hippie_file, "r") as f:
-            hippie_lines = f.readlines()
-        for line in hippie_lines[1:]:
-            parts = line.split("\t")
-            if len(parts) < 5:
-                continue
-            A = parts[0].split("_")[0]
-            B = parts[2].split("_")[0]
-            try:
-                score_value = float(parts[4])
-            except ValueError:
-                continue
-            if A in adatagene and B in adatagene and score_value >= threshold:
-                score_int = int(score_value * 1000)  # scale to match STRING file scores
-                newhippie.append([A, B, score_int])
-                newhippie.append([B, A, score_int])
-
-        # --- Process STRING links file ---
+        for each in hippiefile[1:]:
+            each = each.split("\t")
+            A = each[0].split("_")[0]
+            B = each[2].split("_")[0]
+            if A in adatagene and B in adatagene and float(each[4]) >= 0.8:
+                newhippie.append([A, B, int(float(each[4]) * 1000)])
+                newhippie.append([B, A, int(float(each[4]) * 1000)])
+        string_dict = {}
+        human_encode_dict = {}
         newstring = []
-        with open(links_file, "r") as f:
-            string_lines = f.readlines()[1:]  # Skip header
-        for line in string_lines:
-            parts = line.strip().split()
-            if len(parts) < 3:
-                continue
-            try:
-                score = int(parts[2].strip("\n"))
-            except ValueError:
-                continue
-            if score >= threshold * 1000:
-                if parts[0] in gene_map and parts[1] in gene_map:
-                    gene_source = gene_map[parts[0]]
-                    gene_target = gene_map[parts[1]]
+        for each in stringfile[1:]:
+            each = each.split(" ")
+            score = int(each[2].strip("\n"))
+            if score >= 800:
+                if each[0] in stringinfo_dict.keys() and each[1] in stringinfo_dict.keys():
+                    gene_source = stringinfo_dict[each[0]]
+                    gene_target = stringinfo_dict[each[1]]
                     newstring.append([gene_source, gene_target, score])
-
-        # --- Merge interactions from Hippie and STRING sources ---
-        merged_interactions = newstring + newhippie
-        df = pd.DataFrame(merged_interactions, columns=["Source", "Target", "Weight"])
-        df = df.drop_duplicates()
-
-        # --- Build and save the merged network dictionary ---
+        bidirectionalmerge = newstring
+        
         merged_dict = {}
-        for _, row in df.iterrows():
-            src = row["Source"]
-            tgt = row["Target"]
-            weight = row["Weight"]
-            if src not in merged_dict:
-                merged_dict[src] = {}
-            merged_dict[src][tgt] = weight / 1000.0  # Normalize weight
+        for each in bidirectionalmerge:
+            if each[0] not in merged_dict.keys():
+                merged_dict[each[0]] = {}
+            merged_dict[each[0]][each[1]] = each[2] / 1000
+            
+        # Convert the dictionary to a list of rows
+        data = []
+        for source_gene, targets in merged_dict.items():
+            for target_gene, weight in targets.items():
+                data.append([source_gene, target_gene, weight])
+
+        # Create a DataFrame from the list
+        df = pd.DataFrame(data, columns=["Source", "Target", "Weight"])
 
         self.ppi_df = df
         return self.ppi_df
@@ -131,22 +110,18 @@ class PPINetworkHandler:
                   - list of direct neighbors
                   - list of indirect neighbors
         """
-        # Direct neighbors: genes connected directly to the target.
-        direct_neighbors = set(
-            self.ppi_df.loc[self.ppi_df["Source"] == target_gene, "Target"]
-        ).union(
-            self.ppi_df.loc[self.ppi_df["Target"] == target_gene, "Source"]
-        )
+    
+        # Find direct neighbors
+        direct_neighbors = set(self.ppi_df[self.ppi_df['Source'] == target_gene]['Target'])
+        direct_neighbors.update(self.ppi_df[self.ppi_df['Target'] == target_gene]['Source'])
 
-        # Indirect neighbors: neighbors of direct neighbors, excluding direct ones and the target gene.
-        indirect_neighbors = {
-            neighbor2
-            for neighbor in direct_neighbors
-            for neighbor2 in self.ppi_df.loc[
-                (self.ppi_df["Source"] == neighbor) | (self.ppi_df["Target"] == neighbor),
-                ["Source", "Target"]
-            ].values.flatten()
-            if neighbor2 not in direct_neighbors and neighbor2 != target_gene
-        }
+        # Find indirect neighbors: genes connected to direct neighbors but not directly to target_gene
+        indirect_neighbors = set()
+        for neighbor in direct_neighbors:
+            # Find neighbors of direct neighbors
+            second_degree = set(self.ppi_df[self.ppi_df['Source'] == neighbor]['Target'])
+            second_degree.update(self.ppi_df[self.ppi_df['Target'] == neighbor]['Source'])
+            # Exclude direct neighbors and the target_gene itself
+            indirect_neighbors.update(second_degree - direct_neighbors - {target_gene})
 
         return list(direct_neighbors), list(indirect_neighbors)
