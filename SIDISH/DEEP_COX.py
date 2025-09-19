@@ -1,3 +1,4 @@
+
 import torch
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -116,6 +117,7 @@ class DEEPCOX():
                 events = y[:, -1:].flatten()
 
                 pred = self.model(x_).flatten()
+               
                 loss = loss_DeepCox(pred, events, days, w).view(1,)
 
                 self.opt.zero_grad(set_to_none=True)
@@ -165,3 +167,6 @@ class DEEPCOX():
             out = -np.exp(pred_test.detach().cpu().numpy().reshape((1, -1))[0])
             ci_test = concordance_index(days_test.cpu().numpy(), out, events_test.cpu().numpy())
         return ci_test
+    
+    
+

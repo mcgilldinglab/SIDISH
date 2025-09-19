@@ -1,7 +1,13 @@
 from SIDISH.DEEP_COX import DEEPCOX as DeepCox
 from SIDISH.VAE import VAE as VAE
 from SIDISH.Utils import Utils as utils
+from SIDISH.Utils import get_spatial_graph_from_adata
 from SIDISH.in_silico_perturbation import InSilicoPerturbation
+from SIDISH.ppi_network_handler import PPINetworkHandler
+from SIDISH.gene_perturbation_utils import GenePerturbationUtils
+
+from statsmodels.stats.multitest import multipletests
+import seaborn as sns
 import pandas as pd
 import numpy as np
 import torch
@@ -11,6 +17,8 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
 import os
 from tqdm import tqdm
+
+from typing import Literal
 from scipy.stats import chi2_contingency
 import scanpy as sc
 import matplotlib.pyplot as plt
@@ -18,14 +26,10 @@ from lifelines import CoxPHFitter
 from lifelines.statistics import logrank_test
 from lifelines import KaplanMeierFitter
 import math
-from SIDISH.ppi_network_handler import PPINetworkHandler
-from SIDISH.gene_perturbation_utils import GenePerturbationUtils
-import seaborn as sns
-import pyro
 import itertools
-from scipy.stats import chi2_contingency
-from statsmodels.stats.multitest import multipletests
-import copy
+from scipy.stats import binomtest
+from scipy.stats import wilcoxon
+import pyro
 
 def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int, seed: int) -> tuple:
 
@@ -105,12 +109,169 @@ def plot_umap(ax, umap_combined, palette, percentage_change_):
     labels.append(f"{percentage_change_:.2f}%")
     ax.legend(handles, labels, loc="upper left", fontsize=12, bbox_to_anchor=(0.95, 0.75), frameon=False)
 
+
+def plot_umap_differential(ax, umap_combined):
+    """Plot UMAP scatter plot with the given color palette."""
+    sns.scatterplot(
+        x="UMAP1", 
+        y="UMAP2", 
+        hue='risk', 
+        data=umap_combined, 
+        palette="rocket", 
+        edgecolor='none',
+        alpha=1, 
+        s=15, 
+        ax=ax,
+        legend=False 
+    )
+    
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.set_xlabel("UMAP1", fontsize=12)
+    ax.set_ylabel("UMAP2", fontsize=12)
+    
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # Update legend to include perturbation score
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(plt.Line2D([0], [0]))
+    ax.legend(handles, labels, loc="upper left", fontsize=12, bbox_to_anchor=(0.95, 0.75), frameon=False)
+
+
+def preprocess(
+    adata, 
+    bulk, 
+    survival_df, 
+    patient_id, 
+    celltype_name, 
+    processed = True, 
+    n_genes_by_counts = 5000, 
+    pct_counts_mt = 10, 
+    batch_correction=False, 
+    survival_ = "Overall_survival_days",  
+    status = "Sample_Status"
+):
+
+    subset = None 
+
+    ## Single-cell data preprocessing
+    if processed == False:
+        adata.var_names_make_unique()  
+        sc.pp.filter_cells(adata, min_genes=3)
+        sc.pp.filter_genes(adata, min_cells=400)
+        
+        # annotate mito genes
+        adata.var['mt'] = adata.var_names.str.startswith(('MT-','mt-'))
+        sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
+
+        # (kept) QC plots
+        sc.pl.violin(adata, ['n_genes_by_counts', 'total_counts', 'pct_counts_mt'], jitter=0.4, multi_panel=True)
+        sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt')
+        sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts')
+        
+        # cell-level thresholds
+        adata = adata[adata.obs.n_genes_by_counts < n_genes_by_counts, :].copy()
+        adata = adata[adata.obs.pct_counts_mt < pct_counts_mt, :].copy()
+        
+        # normalize/log + HVG (kept)
+        adata.raw = adata.copy()
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        sc.pp.highly_variable_genes(adata, flavor='seurat')
+
+        # snapshot of raw space restricted to HVGs (kept)
+        subset = adata.raw.to_adata()
+        subset = subset[:, adata.var.highly_variable].copy()
+        adata = adata[:, adata.var.highly_variable].copy()
+        
+        data = bulk.copy()  # assumes first two columns are meta
+        bulk_genes = data.columns.to_numpy()
+        
+        if 'gene_ids' in adata.var.columns: sc_gene = adata.var['gene_ids'].astype(str).values
+        else: sc_gene = adata.var_names.astype(str).values
+
+        inter = np.intersect1d(bulk_genes, sc_gene)
+        if inter.size == 0:
+            raise ValueError("No overlapping genes between bulk and scRNA-seq.")
+
+        ## Keeping intersection between scRNA-seq and bulk
+        if 'gene_ids' in adata.var.columns:
+            adata = adata[:, adata.var['gene_ids'].astype(str).isin(inter)].copy()
+            subset = subset[:, subset.var['gene_ids'].astype(str).isin(inter)].copy()
+        else:
+            adata = adata[:, adata.var_names.isin(inter)].copy()
+            subset = subset[:, subset.var_names.isin(inter)].copy()
+        if 'cells' in subset.obs.columns:
+            subset.obs_names = subset.obs['cells'].astype(str).values
+        if celltype_name in subset.obs.columns:
+            subset.obs.rename(columns={celltype_name: "celltype_major"}, inplace=True)
+        
+        data = data.filter(items=adata.to_df().columns.values)
+        data = data[adata.to_df().columns.values]
+        
+        bulk = pd.concat([survival_df, data], axis=1)
+        bulk.rename(columns={survival_: "duration", status: "event"}, inplace=True)
+        change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]
+        bulk["event"] = change
+
+        ## UMAP and batch correction using Harmony
+        if batch_correction:
+            sc.pp.scale(adata, max_value=10)
+            sc.tl.pca(adata, svd_solver='arpack')
+            sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
+            sc.external.pp.harmony_integrate(adata, key=patient_id)
+            sc.tl.umap(adata)
+            sc.pl.umap(adata, color=[patient_id])
+        
+            ## Data batch correction using ComBat 
+            if patient_id not in subset.obs.columns:
+                # Try to parse from barcode suffix if not present (minimal fix, keeps flow)
+                subset.obs[patient_id] = subset.obs_names.str.split('_').str[-1]
+            sc.pp.combat(subset, key=patient_id)
+        return subset, bulk
+
+    else:
+        # processed == True branch (kept structure)
+        # ------- obs indexing & renaming (kept, but safe) -------
+        if 'cells' in adata.obs.columns:
+            adata.obs_names = adata.obs['cells'].astype(str).values
+        if celltype_name in adata.obs.columns:
+            adata.obs.rename(columns={celltype_name: "celltype_major"}, inplace=True)
+            
+        data = bulk.copy()
+        bulk_genes = data.columns.to_numpy()
+        
+        if 'gene_ids' in adata.var.columns: sc_gene = adata.var['gene_ids'].astype(str).values
+        else: sc_gene = adata.var_names.astype(str).values
+        
+        inter = np.intersect1d(bulk_genes, sc_gene)
+
+        if inter.size == 0:
+            raise ValueError("No overlapping genes between bulk and scRNA-seq.")
+        
+        # gene vectors
+        if 'gene_ids' in adata.var.columns:
+            adata = adata[:, adata.var['gene_ids'].astype(str).isin(inter)].copy()
+        else:
+            adata = adata[:, adata.var_names.isin(inter)].copy()
+            
+        data = data.filter(items=adata.to_df().columns.values)
+        data = data[adata.to_df().columns.values]
+        
+        bulk = pd.concat([survival_df, data], axis=1)
+        bulk.rename(columns={survival_: "duration", status: "event"}, inplace=True)
+        change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]
+        bulk["event"] = change
+        
+        return adata, bulk
+
+
 class SIDISH:
     """
     SIDISH (Semi-Supervised Iterative Deep Learning for Identifying High-Risk Cells).
 
     This framework integrates single-cell and bulk RNA-seq data to identify 
-    high-risk cancer cells and potential biomarkers.
+    High-Risk cancer cells and potential biomarkers.
 
     Parameters
     ----------
@@ -118,17 +279,34 @@ class SIDISH:
         Single-cell RNA-seq data.
     bulk : pd.DataFrame
         Bulk RNA-seq data.
+        
+    use_spatial_graph : bool, optional
+        Whether to use spatial graph information (default=False).
+
+    k_neighbors : int, optional
+        Number of neighbors to use for constructing the spatial graph (default=5).
+        
     device : str
         Computation device ('cpu' or 'cuda').
     seed : int, optional
         Random seed for reproducibility (default=1234).
     """
 
-    def __init__(self, adata, bulk, device: str, seed: int = 1234) -> None:
+    def __init__(self, adata, bulk, device: str = "cpu", seed: int = 1234, use_spatial_graph: bool = False, k_neighbors: int = None) -> None:
         self.adata = adata
         self.bulk = bulk
         self.device = device
         self.seed = seed
+        self.use_spatial_graph = use_spatial_graph
+        self.k_neighbors = k_neighbors
+        
+        if self.use_spatial_graph and "spatial" in self.adata.obsm:
+            edge_index, edge_weight = get_spatial_graph_from_adata(self.adata, spatial_key="spatial", method="knn", k=self.k_neighbors)
+            self.spatial_graph = (edge_index, edge_weight)
+            print("SIDISH Spatial graph constructed using k-NN with k =", self.k_neighbors)
+            
+        else:
+            print("SIDISH No spatial graph used. Proceeding with dense VAE.")
 
     def init_Phase1(self, epochs: int, i_epochs: int, latent_size: int, layer_dims: list, batch_size: int, optimizer: str, lr: float, lr_3: float, dropout: float, type: str = 'Normal') -> None:
         """
@@ -175,9 +353,8 @@ class SIDISH:
 
         # Initialise the weight matrix of phase 1
         self.W_matrix = np.ones(self.adata.X.shape)
-        self.W_matrix_uncapped = np.ones(self.adata.X.shape)
 
-    def init_Phase2(self, epochs: int, hidden: int, lr: float, dropout: float, test_size: float, batch_size: int) -> None:
+    def init_Phase2(self, epochs: int, hidden: int, lr: float, dropout: float, test_size: float, batch_size_bulk: int) -> None:
         """
         Initializes Phase 2: training a Deep Cox model for survival analysis using bulk RNA-seq data.
         
@@ -193,8 +370,8 @@ class SIDISH:
             Dropout rate for training.
         test_size : float
             Proportion of dataset allocated to the test split.
-        batch_size : int
-            Number of samples per batch.
+        batch_size_bulk : int
+            Number of samples per batch for bulk data.
 
         Returns
         -------
@@ -205,7 +382,7 @@ class SIDISH:
         # self.iterations = iterations
         self.lr_2 = lr
         self.dropout_2 = dropout
-        self.batch_size = batch_size
+        self.batch_size_bulk = batch_size_bulk
 
         # Initialise the weight  vector of phase 2
         self.W_vector = np.ones(self.bulk.iloc[:,2:].shape[0])
@@ -213,24 +390,24 @@ class SIDISH:
 
         self.X = self.bulk.iloc[:, 2:].values
         self.Y = self.bulk.iloc[:, :2].values
-        self.X_train, self.X_test, self.y_train, self.y_test = process_Data(self.X, self.Y, test_size, batch_size, self.seed)
+        self.X_train, self.X_test, self.y_train, self.y_test = process_Data(self.X, self.Y, test_size, batch_size_bulk, self.seed)
 
-    def train(self, iterations: int, percentile: float, steepness: float, path: str, num_workers: int = 8, show: bool = True) -> sc.AnnData:
+    def train(self, iterations: int, percentile: float, steepness: float, path: str, num_workers: int = 0, show: bool = True, distribution_fit:Literal["default", "fitted"] = "default") -> sc.AnnData:
         """
-        Trains the SIDISH framework iteratively, refining the identification of high-risk cells.
+        Trains the SIDISH framework iteratively, refining the identification of High-Risk cells.
 
-        This function iteratively updates high-risk cell classifications by integrating 
+        This function iteratively updates High-Risk cell classifications by integrating 
         single-cell and bulk RNA-seq data. Each iteration includes:
         - Training the VAE model on single-cell data.
         - Training the Deep Cox model on bulk RNA-seq survival data.
-        - Updating weight matrices to improve high-risk cell identification.
+        - Updating weight matrices to improve High-Risk cell identification.
 
         Parameters
         ----------
         iterations : int
             Number of training iterations.
         percentile : float
-            Threshold percentile for defining high-risk cells.
+            Threshold percentile for defining High-Risk cells.
         steepness : float
             Scaling factor for updating weights.
         path : str
@@ -243,7 +420,7 @@ class SIDISH:
         Returns
         -------
         sc.AnnData
-            Updated AnnData object containing the refined high-risk cell classifications.
+            Updated AnnData object containing the refined High-Risk cell classifications.
         """
         os.makedirs(path, exist_ok=True)
         self.path = path
@@ -257,8 +434,15 @@ class SIDISH:
         self.W_vector = self.X_train[:, -1]
 
         # Initialise the VAE of phase 1
-        self.vae = VAE(self.epochs_1,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_1, self.dropout_1,self.device, self.seed)
-        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
+        if self.use_spatial_graph and self.spatial_graph is not None:
+            print("########################################## Using Spatial Graph in VAE ##########################################")
+            self.vae = VAE(epochs=self.epochs_1, adata=self.adata, z_dim=self.latent_size, layer_dims=self.layer_dims, lr=self.lr_1, dropout=self.dropout_1, device=self.device, seed=self.seed, gcn_dims=[32, self.latent_size]) 
+            self.vae.initialize(self.adata, W=self.W_matrix, batch_size=self.batch_size, num_workers=self.num_workers, spatial_graph=self.spatial_graph, num_neighbors=self.k_neighbors)
+        
+        else:
+            print("########################################## Using Dense VAE ##########################################")
+            self.vae = VAE(self.epochs_1,self.adata,self.latent_size, self.layer_dims, self.lr_1, self.dropout_1,self.device, self.seed)
+            self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
 
         # Initial training of VAE in iteration 1
         print("########################################## ITERATION 1 OUT OF {} ##########################################".format(iterations))
@@ -284,28 +468,47 @@ class SIDISH:
             self.test_ci_Cox.append(self.deepCox_model.get_test_ci(test_loader=self.test_loader))
 
             patients_data = self.X_train[:, :-1].to(self.device)
-            self.scores, self.adata_, self.percentile_cells, self.cells_max, self.cells_min = utils.getWeightVector(patients_data, self.vae.adata, self.deepCox_model.model, self.percentile, self.device, self.type)
+            
+            print("########################################## Calculating Patients Weight Vector ##########################################")
+            if i == 0:
+                self.scores, self.adata_, self.percentile_cells, self.cells_max, self.cells_min, returned_dist = utils.getWeightVector(patients_data, self.vae.adata, self.deepCox_model.model, self.percentile, self.device, distribution_fit)
+                self.dist = returned_dist
+            else: 
+                if distribution_fit == 'fitted':
+                    self.scores, self.adata_, self.percentile_cells, self.cells_max, self.cells_min , returned_dist = utils.getWeightVector(patients_data, self.vae.adata, self.deepCox_model.model, self.percentile, self.device, distribution_fit, self.dist)
+                else:
+                    self.scores, self.adata_, self.percentile_cells, self.cells_max, self.cells_min , returned_dist = utils.getWeightVector(patients_data, self.vae.adata, self.deepCox_model.model, self.percentile, self.device, "default")
+            
+                
             self.percentile_list.append(self.percentile_cells)
             self.W_vector += self.scores
+            
+            print("########################################## Calculating Cells Weight Matrix ##########################################")
             self.W_temp = utils.getWeightMatrix(self.adata_, self.seed, self.steepness, self.type)
             self.W_matrix += self.W_temp
             self.W_matrix[self.W_matrix >= 2] = 2
 
-            self.W_matrix_uncapped += self.W_temp
-
             self.adata = self.adata_.copy()
-            pd.DataFrame(self.W_matrix).to_csv("{}W_matrix_{}.csv".format(self.path,i))
-            #pd.DataFrame(self.W_matrix_uncapped).to_csv("{}W_matrix_uncapped_{}.csv".format(path, i))
 
+            print("########################################## Saving Weight Matrix at Iteration {} ##########################################".format(i))
+            pd.DataFrame(self.W_matrix).to_csv("{}W_matrix_{}.csv".format(self.path,i))
+            
             if i == (iterations - 1):
                 print("########################################## SIDISH TRAINING DONE ##########################################")
                 break
 
             else:
                 print("########################################## ITERATION {} OUT OF {} ##########################################".format(i+2, iterations))
-                self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_3, self.dropout_1,self.device, self.seed)
-                self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type,self.num_workers)
-                self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+                if self.use_spatial_graph and self.spatial_graph is not None:
+                    self.vae = VAE(epochs=self.epochs_3, adata=self.adata, z_dim=self.latent_size, layer_dims=self.layer_dims, lr=self.lr_3, dropout=self.dropout_1, device=self.device, seed=self.seed, gcn_dims=[32, self.latent_size])
+                    self.vae.initialize(self.adata, spatial_graph=self.spatial_graph, W=self.W_matrix, batch_size=self.batch_size, num_neighbors=self.k_neighbors, num_workers=self.num_workers)
+                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+                
+                else:
+                    self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims,self.lr_3, self.dropout_1,self.device, self.seed)
+                    self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type,self.num_workers)
+                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+                
                 self.vae.train()
 
                 # Save VAE for iterative process
@@ -313,6 +516,7 @@ class SIDISH:
 
         torch.save(self.deepCox_model.model.state_dict(), "{}deepCox".format(self.path))
 
+        print("########################################## Saving Final AnnData Object ##########################################")
         fn = "{}adata_SIDISH.h5ad".format(self.path)
         self.adata.write_h5ad(fn, compression="gzip")
         return self.adata
@@ -393,27 +597,36 @@ class SIDISH:
         plt.tight_layout()
         plt.show()
 
-    def annotateCells(self, test_adata, percentile_cells, mode, type ='Normal' ):
+    def annotateCells(self, test_adata, percentile_cells, mode, perturbation=False):
 
-        adata_new = utils.annotateCells(test_adata, self.deepCox_model.model, percentile_cells, self.device, self.percentile,mode =mode, type=type)
+        adata_new = utils.annotateCells(test_adata, self.deepCox_model.model, percentile_cells, self.device, self.percentile,mode =mode,perturbation=perturbation)
 
         return adata_new
 
-    def reload(self, path, num_workers = 8):
+    def reload(self, path, num_workers = 0):
         self.path = path
         self.num_workers = num_workers
-        self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims, self.optimizer, self.lr_3, self.dropout_1,self.device, self.seed)
-        self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
-        self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+        
+        if self.use_spatial_graph and self.spatial_graph is not None:
+            print("########################################## Using Spatial Graph in VAE ##########################################")
+            self.vae = VAE(epochs=self.epochs_1, adata=self.adata, z_dim=self.latent_size, layer_dims=self.layer_dims, lr=self.lr_1, dropout=self.dropout_1, device=self.device, seed=self.seed, gcn_dims=[32, self.latent_size]) 
+            self.vae.initialize(self.adata, W=self.W_matrix, batch_size=self.batch_size, num_workers=self.num_workers, spatial_graph=self.spatial_graph, num_neighbors=self.k_neighbors)
+            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+        
+        else:
+            print("########################################## Using Dense VAE ##########################################")
+            self.vae = VAE(self.epochs_1,self.adata,self.latent_size, self.layer_dims, self.lr_1, self.dropout_1,self.device, self.seed)
+            self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
+            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+
 
         self.encoder = self.vae
-
         self.W_vector = self.X_train[:, -1]
 
         self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size, self.seed, self.lr_2, self.dropout_2)
         self.deepCox_model.model.load_state_dict(torch.load("{}deepCox".format(self.path)))
 
-        print('Reload Complete')    
+        print("✅ Reload complete – VAE and DeepCox restored")
 
     def get_percentille(self, percentile):
         self.percentile = percentile
@@ -517,149 +730,77 @@ class SIDISH:
 
         return self.upregulated_genes, self.downregulated_genes
 
-
-
     def analyze_perturbation_effects(self):
-        """
-        Perform in-silico perturbation statistical analysis.
-
-        Returns:
-            tuple:
-                A tuple containing:
-                  - percentage_dict: dict mapping gene to percentage change.
-                  - pvalue_dict: dict mapping gene to chi-squared test p-value.
-        """
-        self.percentage_dict = {}
-        self.pvalue_dict = {}
+        self.percent_change, self.p_flip, self.p_score = {}, {}, {}
+        self.delta_change = {}
         self.b_dict = {}
         self.b_to_h_dict = {}
         self.h_to_b_dict = {}
         self.h_dict = {}
-
-        self.genes = list(self.adata.var.index)
-
+        
         n_hcells = (self.adata.obs.SIDISH == "h").sum()
 
-        for gene, data in tqdm(zip(self.genes, self.optimized_results),total=len(self.genes),desc="Calculating Stats"):
-            # Annotate the perturbed cells
-            adata_p = self.annotateCells(data, self.percentile_cells, "no")
+        for gene, data in tqdm(zip(self.genes, self.optimized_results), total=len(self.genes), desc="Stats"):
 
-            # Count cell state transitions
-            h_to_b = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "b")).sum()
-            b_to_h = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "h")).sum()
+            adata_p = self.annotateCells(data, self.percentile_cells, mode="no", perturbation=True)
 
+            h_to_b = ((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum()
+            b_to_h = ((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum()
+
+            # % drop in high-risk cells
+            self.percent_change[gene] = ((h_to_b - b_to_h) / n_hcells) * 100
+            
+
+            # --- 1  one-sided sign test on label flips ---
+            flips = h_to_b + b_to_h
+            if flips:   # avoid 0-trials edge case
+                p_flip = binomtest(k=h_to_b, n=flips, p=0.5, alternative="greater").pvalue
+            else:
+                p_flip = 1.0
+            self.p_flip[gene] = p_flip
+
+            # --- 2  one-sided Wilcoxon on risk-score delta ---
+            delta = adata_p.obs["perturbation_score"].values
+            self.delta_change[gene] = delta.mean()
+            _, p_score = wilcoxon(delta, alternative="greater")
+            
             self.h_to_b_dict[gene] = h_to_b
             self.b_to_h_dict[gene] = b_to_h
             self.b_dict[gene] = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "b")).sum()
             self.h_dict[gene] = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "h")).sum()
 
-            # Compute percentage change
-            self.percentage_dict[gene] = ((h_to_b - b_to_h) / n_hcells) * 100
+            self.p_score[gene] = p_score
 
-            # Construct contingency table and perform chi-squared test
-            val = n_hcells - (h_to_b - b_to_h)
-            contingency_table = [
-                [n_hcells, self.adata.shape[0] - n_hcells],
-                [val, adata_p.shape[0] - val]
-            ]
-            _, p_value, _, _ = chi2_contingency(contingency_table, correction=True)
-            self.pvalue_dict[gene] = p_value
-
-        return self.percentage_dict, self.pvalue_dict
-
+        return self.percent_change, self.delta_change, self.p_flip, self.p_score
+    
+  
 
     def run_Perturbation(self, n_jobs: int = 4) -> tuple:
-        """
-        Runs gene perturbation simulations using the in-silico perturbation module.
 
-        Parameters
-        ----------
-        n_jobs : int, optional
-            Number of parallel jobs for perturbation simulations (default=4).
-
-        Returns
-        -------
-        tuple
-            - dict: Mapping of genes to percentage change in high-risk cells.
-            - dict: Mapping of genes to chi-squared test p-values.
-        """
+    
         self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
         self.genes = list(self.adata.var.index)
         
         self.percentage_dict = {}
         self.pvalue_dict = {}
-        
-        # Precompute values used multiple times
-        n_hcells = (self.adata.obs.SIDISH == "h").sum()
-        n_total_cells =self.adata.shape[0]  # Total number of cells
-        h_risk_cells_sum = (self.adata.obs.SIDISH == "h").values.sum()  # Cached for reuse
                 
         perturbation = InSilicoPerturbation(self.adata)
-        perturbation.setup_ppi_network(threshold=0.8)
-        self.optimized_results = perturbation.run_parallel_processing(self.adata,self.genes, n_jobs=4)
-        self.percentage_dict, self.pvalue_dict = self.analyze_perturbation_effects()
+        perturbation.setup_ppi_network(threshold=0.7)
+        self.optimized_results = perturbation.run_parallel_processing(self.adata, n_jobs=4)
+        self.percent_change, self.delta_change, self.p_flip, self.p_score = self.analyze_perturbation_effects()
         
-        return self.percentage_dict, self.pvalue_dict
+        return self.percent_change, self.delta_change, self.p_flip, self.p_score
 
-    def run_double_Perturbation(self, top_n = 20, threshold=0.8):
-        
-        pvals = list(self.pvalue_dict.values())
-        corrected_pvals = multipletests(pvals, alpha=0.05, method='fdr_bh')
-        corrected_pvalue_dict = dict(zip(self.pvalue_dict.keys(), corrected_pvals[1]))
-        pvalue_df = pd.DataFrame(list(corrected_pvalue_dict.items()), columns=["Gene", "Pvalue"])
-        pvalue_df.sort_values(by='Pvalue',ascending=True, inplace=True)
-        pvalue_df = pvalue_df[pvalue_df.Pvalue < 0.05]
-        
-        self.top_genes = pvalue_df.Gene.values
-        
-        self.percentage_df = pd.DataFrame([self.percentage_dict], index=None).T.reset_index()
-        self.percentage_df.columns = ["Genes", "Scores"]
-        self.percentage_df.sort_values(by=["Scores"], ascending=False, inplace=True)
-        
-        self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
-        
-        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
-        n_hcells = (self.adata.obs.SIDISH == "h").sum()
-        self.percentage_double_dict = {}
-        self.pvalue_double_dict = {}
-        self.ppi_handler = PPINetworkHandler(self.adata)
-        self.ppi_handler.load_network(threshold)
-        
-        for combination in tqdm(all_combinations[:]):
-            adata_p = self.adata.copy()
-            for g in combination:
-                direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(g)
-                neighbors = direct_neighbors + indirect_neighbors
-                network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
-                    
-                if not network_df.empty:
-                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
-                else:
-                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
-
-            adata_p = self.annotateCells(adata_p, self.percentile_cells, "no")
-            h_to_b = ((self.adata.obs['SIDISH'] == 'h') & (adata_p.obs['SIDISH'] == 'b')).sum()
-            b_to_h = ((self.adata.obs['SIDISH'] == 'b') & (adata_p.obs['SIDISH'] == 'h')).sum()
-            
-            val = (self.adata.obs.SIDISH == "h").values.sum() - (h_to_b - b_to_h)
-            contingency_table = [[n_hcells, self.adata.shape[0] - n_hcells], [val, adata_p.shape[0] - val]]
-
-            chi2, p_value, dof, expected = chi2_contingency(contingency_table, correction=False)
-            self.percentage_double_dict["{}+{}".format(combination[0], combination[1])] = ((h_to_b - b_to_h) / (self.adata.obs.SIDISH == "h").values.sum())*100
-            self.pvalue_double_dict["{}+{}".format(combination[0], combination[1])] = p_value
-        return self.percentage_double_dict, self.pvalue_double_dict
-    
-        
     def plot_KM(self, penalizer=0.1, data_name="DATA", high_risk_label="High-Risk", background_label="Background", colors=("pink", "grey"), fontsize=12):
         """
-        Plot Kaplan-Meier survival curves for high-risk and background patient groups.
+        Plot Kaplan-Meier survival curves for High-Risk and background patient groups.
 
         Parameters:
             penalizer (float): Penalizer for CoxPHFitter regularization.
             data_name (str): Title label for the dataset.
-            high_risk_label (str): Label for the high-risk group.
+            high_risk_label (str): Label for the High-Risk group.
             background_label (str): Label for the background group.
-            colors (tuple): Colors for the survival plots (high-risk, background).
+            colors (tuple): Colors for the survival plots (High-Risk, background).
             fontsize (int): Font size for plot labels and legends.
         """
 
@@ -738,29 +879,25 @@ class SIDISH:
     def plot_top_perturbed_genes(self, gene_data, top_n=20):
         """
         Plots a barplot of the top N genes with the highest percentage reduction
-        in high-risk cells after in-silico perturbation.
+        in High-Risk cells after in-silico perturbation.
 
         Parameters:
         - gene_data (dict): Dictionary of gene perturbation effects.
         - top_n (int): Number of top genes to display. Default is 20.
         """
         # Sort the genes by their reduction percentages
-        #self.top_genes = dict(sorted(gene_data.items(), key=lambda x: x[1], reverse=True)[:top_n])
-        percentage_df = pd.DataFrame([self.percentage_dict], index=None).T.reset_index()
-        percentage_df.columns = ["Genes", "Scores"]
-        percentage_df.sort_values(by=["Scores"], ascending=False, inplace=True)
-        percentage_df = percentage_df[:top_n]
-        
+        self.top_genes = dict(sorted(gene_data.items(), key=lambda x: x[1], reverse=True)[:top_n])
+
         # Plotting
         plt.figure(figsize=(8, 8))
-        plt.barh(percentage_df.Genes.values,percentage_df.Scores.values, color='brown')
+        plt.barh(list(self.top_genes.keys()), list(self.top_genes.values()), color='brown')
         plt.xlabel('% Reduction of High-Risk Cells')
         plt.title(f'Top {top_n} Genes by Reduction in High-Risk Cells After Perturbation')
         plt.gca().invert_yaxis()  # Invert y-axis to show the highest reduction on top
         plt.show()
 
 
-    def plot_perturbation_UMAP(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
+    def plot_perturbation_UMAP_default(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
         """
         Generates UMAP visualizations for specified genes after in-silico perturbation.
 
@@ -844,13 +981,232 @@ class SIDISH:
                 ax.axis('off')
 
         plt.show()
+        
 
-    def plot_double_Perturbation_Heatmap(self, percentage_double_dict):
+
+    def plot_perturbation_UMAP_differential(self, genes_of_interest, resolution=None, celltype=True, threshold=0.8):
+        """
+        Generates UMAP visualizations for specified genes after in-silico perturbation.
+
+        Parameters:
+        - adata: AnnData object with latent embeddings.
+        - sidish: SIDISH object for annotation and processing.
+        - ppi_df: DataFrame containing the PPI network data.
+        - genes_of_interest (list): List of genes to visualize.
+        - output_path: Filepath for saving the generated UMAP plot.
+        - seed: Random seed for reproducibility. Default is 42.
+        """
+        if not isinstance(genes_of_interest, list):
+            raise TypeError("genes_of_interest must be a list of gene names.")
+
+        # Dynamic subplot layout
+        n_genes = len(genes_of_interest)
+        n_cols = 2
+        n_rows = math.ceil(n_genes / n_cols)
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 4.5 * n_rows), squeeze=False)
+        axs = axs.flatten()
+
+        for gene, ax in zip(genes_of_interest, axs):
+            self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
             
-        df = self.percentage_df.iloc[:20].sort_values(by='Genes')
+            self.ppi_handler = PPINetworkHandler(self.adata)
+            self.ppi_handler.load_network(threshold)
+            
+            direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(gene)
+            neighbors = direct_neighbors + indirect_neighbors
+            network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
+            
+            if not network_df.empty:
+                adata_p = GenePerturbationUtils.adjust_expression(self.adata, gene, network_df)
+            else:
+                adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, gene).tocsr()
+
+            adata_p = self.annotateCells(adata_p, self.percentile_cells, mode="no", perturbation=True)
+
+
+            # --- 2  one-sided Wilcoxon on risk-score delta ---
+            delta = adata_p.obs["perturbation_score"].values
+            self.delta_change[gene] = delta.mean()
+
+            self.adata = self.get_embedding(resolution=resolution, celltype=celltype)
+            self.set_adata()
+            
+            umap_combined = pd.DataFrame(self.adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"])
+            umap_combined.index = adata_p.obs.index.values
+            umap_combined['risk'] = adata_p.obs['perturbation_score'].values
+
+            plot_umap_differential(ax, umap_combined)
+            ax.set_title("In silico Knockout of {} (Change in score)".format(gene), fontsize=12, y=0.96)
+        
+
+        # Remove empty subplots
+        if len(axs) > n_genes:
+            for ax in axs[n_genes:]:
+                ax.axis('off')
+
+        plt.show()
+
+
+    def run_double_Perturbation(self,genes, top_n = 20, threshold=0.8):
+
+        self.percent_change_double, self.p_flip_double = {}, {}
+
+        self.b_dict_double = {}
+        self.b_to_h_dict_double = {}
+        self.h_to_b_dict_double = {}
+        self.h_dict_double = {}
+
+        pvals_flip = list(self.p_flip.values())
+
+        corrected_pvals_flip = multipletests(pvals_flip, alpha=0.05, method='fdr_bh')
+
+        corrected_pvalue_dict_flip = dict(zip(self.p_flip.keys(), corrected_pvals_flip[1]))
+
+        pvalue_df_flip = pd.DataFrame(list(corrected_pvalue_dict_flip.items()), columns=["Gene", "Pvalue"])
+ 
+        pvalue_df_flip.sort_values(by='Pvalue',ascending=True, inplace=True)
+
+        pvalue_df_flip = pvalue_df_flip[pvalue_df_flip.Pvalue < 0.05]
+    
+        self.top_genes_flip = pvalue_df_flip.Gene.values
+    
+
+        self.percentage_df_flip = pd.DataFrame([self.percent_change], index=None).T.reset_index()
+        self.percentage_df_flip.columns = ["Genes", "Scores"]
+        self.percentage_df_flip.sort_values(by=["Scores"], ascending=False, inplace=True)
+
+
+        self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
+
+        self.top_genes_flip = self.percentage_df_flip.Genes.values
+
+        self.top_genes = self.top_genes_flip
+        print(self.top_genes_flip[:top_n] == genes)
+
+        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
+        n_hcells = (self.adata.obs.SIDISH == "h").sum()
+        self.percentage_double_dict = {}
+        self.pvalue_double_dict = {}
+        self.ppi_handler = PPINetworkHandler(self.adata)
+        self.ppi_handler.load_network(threshold)
+        
+        for combination in tqdm(all_combinations[:]):
+            adata_p = self.adata.copy()
+            for g in combination:
+                direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(g)
+                neighbors = direct_neighbors + indirect_neighbors
+                network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
+                    
+                if not network_df.empty:
+                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
+                else:
+                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
+                    
+            adata_p = self.annotateCells(adata_p, self.percentile_cells, mode="no", perturbation=True)
+
+            h_to_b = ((self.adata.obs.SIDISH == "h") & (adata_p.obs.SIDISH == "b")).sum()
+            b_to_h = ((self.adata.obs.SIDISH == "b") & (adata_p.obs.SIDISH == "h")).sum()
+            
+            
+            
+            self.percent_change_double["{}+{}".format(combination[0], combination[1])] = ((h_to_b - b_to_h) / n_hcells) * 100
+            
+            # --- 1  one-sided sign test on label flips ---
+            flips = h_to_b + b_to_h
+            if flips:   # avoid 0-trials edge case
+                p_flip_ = binomtest(k=h_to_b, n=flips, p=0.5, alternative="greater").pvalue
+            else:
+                p_flip_ = 1.0
+            self.p_flip_double["{}+{}".format(combination[0], combination[1])] = p_flip_
+
+
+            self.h_to_b_dict_double["{}+{}".format(combination[0], combination[1])] = h_to_b
+            self.b_to_h_dict_double["{}+{}".format(combination[0], combination[1])] = b_to_h
+            self.b_dict_double["{}+{}".format(combination[0], combination[1])] = ((self.adata.obs["SIDISH"] == "b") & (adata_p.obs["SIDISH"] == "b")).sum()
+            self.h_dict_double["{}+{}".format(combination[0], combination[1])] = ((self.adata.obs["SIDISH"] == "h") & (adata_p.obs["SIDISH"] == "h")).sum()
+
+
+        return self.percent_change_double, self.p_flip_double
+
+
+
+    def run_double_Perturbation_score(self, genes, top_n = 20, threshold=0.8):
+
+        self.p_score_double = {}
+        self.delta_change_double = {}
+
+        self.b_dict_double = {}
+        self.b_to_h_dict_double = {}
+        self.h_to_b_dict_double = {}
+        self.h_dict_double = {}
+
+        pvals_score = list(self.p_score.values())
+        
+
+        corrected_pvals_score = multipletests(pvals_score, alpha=0.05, method='fdr_bh')
+
+        corrected_pvalue_dict_score = dict(zip(self.p_score.keys(), corrected_pvals_score[1]))
+
+        pvalue_df_score = pd.DataFrame(list(corrected_pvalue_dict_score.items()), columns=["Gene", "Pvalue"])
+        
+        pvalue_df_score.sort_values(by='Pvalue',ascending=True, inplace=True)
+        
+        pvalue_df_score = pvalue_df_score[pvalue_df_score.Pvalue < 0.05]
+        
+        self.top_genes_score = pvalue_df_score.Gene.values
+
+        self.percentage_df_score = pd.DataFrame([self.delta_change], index=None).T.reset_index()
+        self.percentage_df_score.columns = ["Genes", "Scores"]
+        self.percentage_df_score.sort_values(by=["Scores"], ascending=False, inplace=True)
+        self.top_genes_score = self.percentage_df_score.Genes.values
+
+        self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
+        
+        self.top_genes = self.top_genes_score
+        print(self.top_genes_score[:top_n] == genes)
+
+
+        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
+        self.percentage_double_dict = {}
+        self.pvalue_double_dict = {}
+        self.ppi_handler = PPINetworkHandler(self.adata)
+        self.ppi_handler.load_network(threshold)
+        
+        for combination in tqdm(all_combinations[:]):
+            adata_p = self.adata.copy()
+            for g in combination:
+                direct_neighbors, indirect_neighbors = self.ppi_handler.get_neighbors(g)
+                neighbors = direct_neighbors + indirect_neighbors
+                network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
+                    
+                if not network_df.empty:
+                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
+                else:
+                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
+                    
+            adata_p = self.annotateCells(adata_p, self.percentile_cells, mode="no", perturbation=True)
+            
+            
+            # --- 2  one-sided Wilcoxon on risk-score delta ---
+            delta_double = adata_p.obs["perturbation_score"].values
+            self.delta_change_double["{}+{}".format(combination[0], combination[1])] = delta_double.mean()
+            _, p_score_ = wilcoxon(delta_double, alternative="greater")
+            self.p_score_double["{}+{}".format(combination[0], combination[1])] = p_score_
+
+        return self.delta_change_double, self.p_score_double
+
+     
+    def plot_double_Perturbation_Heatmap(self, percentage_double_dict, top_n=20):
+        
+        percent_change_df = pd.DataFrame(list(self.percent_change.items()), columns=["Genes", "Scores"])
+        percent_change_df.sort_values(by='Scores', ascending=False, inplace=True)
+        percent_change_df.Genes.values[:top_n]
+            
+        df = percent_change_df.iloc[:top_n].sort_values(by='Genes')
         df = df.sort_values(by="Scores", ascending=False)
-
-
+        
+       
         # Filter out zero values and create a DataFrame for the gene pairs
         double_dict = percentage_double_dict
         double_dict = {k: v for k, v in double_dict.items() if v != 0}
@@ -863,13 +1219,17 @@ class SIDISH:
 
         # Reordering rows and columns of the matrix
         heatmap_matrix = heatmap_matrix.loc[sorted_genes, sorted_genes]
-
+        
+        for gene in sorted_genes:
+            score = self.percent_change[gene][id]
+            heatmap_matrix[gene] = heatmap_matrix[gene].fillna(score)
+        
         # Create the figure and subplots with different width ratios
-        fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 15]}, figsize=(8, 6))  # Reduce width for 1D heatmap
+        fig, (ax1, ax2) = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 15]}, figsize=(10, 8))  # Reduce width for 1D heatmap
 
         # Plot 1D heatmap on the first axis (ax1)
         sns.heatmap(df[['Scores']], cmap='Reds', cbar=True, yticklabels=df['Genes'], xticklabels=False, ax=ax1)
-        ax1.set_title('', fontsize=14)
+        ax1.set_title('', fontsize=12)
         ax1.set_xlabel('')  # No x-axis label
         ax1.set_ylabel('')
 

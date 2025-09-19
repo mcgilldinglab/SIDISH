@@ -83,7 +83,7 @@ class InSilicoPerturbation:
 
         return adata_p
 
-    def run_parallel_processing(self, adata, genes, n_jobs=4):
+    def run_parallel_processing(self, adata, n_jobs=4):
         """
         Run gene perturbation processing in parallel.
 
@@ -94,9 +94,6 @@ class InSilicoPerturbation:
         Side Effects:
             Sets the 'optimized_results' attribute with the list of perturbed AnnData objects.
         """
-        self.optimized_results = Parallel(n_jobs=n_jobs)(
-            delayed(self.process_gene)(adata, gene)
-            for gene in tqdm(genes, desc="Processing Genes", leave=True)
-        )
+        self.optimized_results = Parallel(n_jobs=n_jobs)(delayed(self.process_gene)(adata, gene) for gene in tqdm(self.genes, desc="Processing Genes", leave=True))
 
         return self.optimized_results
