@@ -1,10 +1,12 @@
-from SIDISH.DEEP_COX import DEEPCOX as DeepCox
-from SIDISH.VAE import VAE as VAE
-from SIDISH.Utils import Utils as utils
-from SIDISH.Utils import get_spatial_graph_from_adata
+# Core SIDISH components
+from SIDISH.DEEP_COX import DEEPCOX as DeepCox          # Deep Cox model wrapper (Phase 2)
+from SIDISH.VAE import VAE as VAE                        # VAE encoder (Phase 1)
+from SIDISH.Utils import Utils as utils                  # Helper utilities used across phases
+from SIDISH.Utils import get_spatial_graph_from_adata    # Build spatial graph (for spatial-VAE)
 from SIDISH.in_silico_perturbation import InSilicoPerturbation
-from SIDISH.ppi_network_handler import PPINetworkHandler
-from SIDISH.gene_perturbation_utils import GenePerturbationUtils
+from SIDISH.ppi_network_handler import PPINetworkHandler # Loads/queries PPI network
+from SIDISH.gene_perturbation_utils import GenePerturbationUtils  # Gene KO / network-based adj.
+
 
 from statsmodels.stats.multitest import multipletests
 import seaborn as sns
@@ -19,9 +21,6 @@ import os
 from tqdm import tqdm
 
 from typing import Literal
-from scipy.stats import chi2_contingency
-import scanpy as sc
-import matplotlib.pyplot as plt
 from lifelines import CoxPHFitter
 from lifelines.statistics import logrank_test
 from lifelines import KaplanMeierFitter
@@ -83,7 +82,10 @@ def process_Data(X: np.ndarray, Y: np.ndarray, test_size: float, batch_size: int
     return X_train, X_test, y_train, y_test
 
 def plot_umap(ax, umap_combined, palette, percentage_change_):
-    """Plot UMAP scatter plot with the given color palette."""
+    """
+    Scatter UMAP of High-Risk/Background status after perturbation with a 
+    custom palette and an extra legend line indicating the perturbation percentage change.
+    """
     sns.scatterplot(
         x="UMAP1", 
         y="UMAP2", 
@@ -111,7 +113,9 @@ def plot_umap(ax, umap_combined, palette, percentage_change_):
 
 
 def plot_umap_differential(ax, umap_combined):
-    """Plot UMAP scatter plot with the given color palette."""
+    """
+    Scatter UMAP colored by continuous risk delta after perturbation.
+    """
     sns.scatterplot(
         x="UMAP1", 
         y="UMAP2", 
@@ -151,7 +155,18 @@ def preprocess(
     survival_ = "Overall_survival_days",  
     status = "Sample_Status"
 ):
+    
+    """
+    Harmonize scRNA-seq (AnnData) and bulk tables:
+    - QC (if raw), HVG selection, intersection of genes across modalities
+    - Optionally apply Harmony (neighbors/umap/visual check) + ComBat
+    - Merge survival metadata -> bulk with columns: duration, event
 
+    Returns
+    -------
+    (AnnData, pd.DataFrame)
+        (sc object restricted to intersecting genes, bulk with survival columns)
+    """
     subset = None 
 
     ## Single-cell data preprocessing
@@ -164,7 +179,7 @@ def preprocess(
         adata.var['mt'] = adata.var_names.str.startswith(('MT-','mt-'))
         sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], percent_top=None, log1p=False, inplace=True)
 
-        # (kept) QC plots
+        # QC plots
         sc.pl.violin(adata, ['n_genes_by_counts', 'total_counts', 'pct_counts_mt'], jitter=0.4, multi_panel=True)
         sc.pl.scatter(adata, x='total_counts', y='pct_counts_mt')
         sc.pl.scatter(adata, x='total_counts', y='n_genes_by_counts')
@@ -173,18 +188,18 @@ def preprocess(
         adata = adata[adata.obs.n_genes_by_counts < n_genes_by_counts, :].copy()
         adata = adata[adata.obs.pct_counts_mt < pct_counts_mt, :].copy()
         
-        # normalize/log + HVG (kept)
+        # normalize/log + HVG
         adata.raw = adata.copy()
         sc.pp.normalize_total(adata, target_sum=1e4)
         sc.pp.log1p(adata)
         sc.pp.highly_variable_genes(adata, flavor='seurat')
 
-        # snapshot of raw space restricted to HVGs (kept)
+        # count cells restricted to HVGs
         subset = adata.raw.to_adata()
         subset = subset[:, adata.var.highly_variable].copy()
         adata = adata[:, adata.var.highly_variable].copy()
         
-        data = bulk.copy()  # assumes first two columns are meta
+        data = bulk.copy()  # assumes first two columns are metadata (survival days, event)
         bulk_genes = data.columns.to_numpy()
         
         if 'gene_ids' in adata.var.columns: sc_gene = adata.var['gene_ids'].astype(str).values
@@ -214,7 +229,7 @@ def preprocess(
         change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]
         bulk["event"] = change
 
-        ## UMAP and batch correction using Harmony
+        ## Optional UMAP and batch correction using Harmony
         if batch_correction:
             sc.pp.scale(adata, max_value=10)
             sc.tl.pca(adata, svd_solver='arpack')
@@ -225,14 +240,12 @@ def preprocess(
         
             ## Data batch correction using ComBat 
             if patient_id not in subset.obs.columns:
-                # Try to parse from barcode suffix if not present (minimal fix, keeps flow)
                 subset.obs[patient_id] = subset.obs_names.str.split('_').str[-1]
             sc.pp.combat(subset, key=patient_id)
         return subset, bulk
 
     else:
-        # processed == True branch (kept structure)
-        # ------- obs indexing & renaming (kept, but safe) -------
+        # processed == True
         if 'cells' in adata.obs.columns:
             adata.obs_names = adata.obs['cells'].astype(str).values
         if celltype_name in adata.obs.columns:
@@ -240,7 +253,8 @@ def preprocess(
             
         data = bulk.copy()
         bulk_genes = data.columns.to_numpy()
-        
+
+        # Restrict sc to intersection
         if 'gene_ids' in adata.var.columns: sc_gene = adata.var['gene_ids'].astype(str).values
         else: sc_gene = adata.var_names.astype(str).values
         
@@ -249,15 +263,17 @@ def preprocess(
         if inter.size == 0:
             raise ValueError("No overlapping genes between bulk and scRNA-seq.")
         
-        # gene vectors
+        ## Keeping intersection between scRNA-seq and bulk
         if 'gene_ids' in adata.var.columns:
             adata = adata[:, adata.var['gene_ids'].astype(str).isin(inter)].copy()
         else:
             adata = adata[:, adata.var_names.isin(inter)].copy()
-            
+        
+        # Reorder bulk to sc gene order
         data = data.filter(items=adata.to_df().columns.values)
         data = data[adata.to_df().columns.values]
         
+        # Merge survival metadata; map event to {0,1}
         bulk = pd.concat([survival_df, data], axis=1)
         bulk.rename(columns={survival_: "duration", status: "event"}, inplace=True)
         change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]

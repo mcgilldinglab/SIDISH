@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -130,12 +129,15 @@ class DEEPCOX():
         self.loss_train = loss.item()
 
     def get_train_ci(self):
+        #Return training concordance index
         return self.ci_train
 
     def get_train_loss(self):
+        #Return final training loss.
         return self.loss_train
 
     def get_test_loss(self, test_loader):
+        #Compute loss on test data.
         self.model.eval()
         with torch.no_grad():
             genes, surv = next(iter(test_loader))
@@ -152,6 +154,7 @@ class DEEPCOX():
         return loss_test
 
     def get_test_ci(self, test_loader):
+        #Compute concordance index on test data.
         self.model.eval()
         with torch.no_grad():
             genes, surv = next(iter(test_loader))
@@ -169,4 +172,3 @@ class DEEPCOX():
         return ci_test
     
     
-
