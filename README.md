@@ -78,18 +78,18 @@ pip install -r requirements.txt
 ## Tutorials:
 To download the Lung Adenocarcinoma single-cell data as well as the bulk and paired survival data used in the tutorial, follow this [link](https://drive.google.com/file/d/1myrifg9f4fvFgunwpDzkPhlZ9AZUxLuX/view?usp=sharing).
 
-### Preprocessing single-cell and bulk data
-[Tutorial 0: Preprocess LUAD single-cell data and paired bulk RNA-seq and survival data, for use to train SIDISH](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_0_data_preprocessing.ipynb)
+### Preprocessing single-cell and bulk data  
+[Tutorial 0: Preprocess LUAD single-cell data and paired bulk RNA-seq and survival data for SIDISH training](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_0_data_preprocessing.ipynb)  
 
+### Running SIDISH on lung cancer dataset and saving results  
+[Tutorial 1: Train SIDISH using the LUAD dataset and save trained model outputs](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_1_initializing_and_training_SIDISH.ipynb)  
 
-### Running SIDISH on lung cancer dataset and visualization of results
-[Tutorial 1: Train SIDISH using lung cancer dataset and saving the results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_1_initializing_and_training_SIDISH.ipynb)
+### Reloading SIDISH and visualization of results  
+[Tutorial 2: Reload a trained SIDISH model and visualize High-Risk cell subpopulations](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_2_reload_SIDISH_and_visualization.ipynb)  
 
-### Running SIDISH's In silico perturbation feature lung cancer dataset and visualization of results
-[Tutorial 3: Perform in silico perturbation using lung cancer dataset and visualize your results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_3_perturbation.ipynb)
+### Running SIDISH’s in silico perturbation feature on lung cancer dataset  
+[Tutorial 3: Perform in silico perturbation using the LUAD dataset and visualize therapeutic effects](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_3_perturbation.ipynb) 
 
-### Running SIDISH on individual patients in Breast Cancer single-cell dataset and visualization of results
-[Tutorial 4: Analyse patient-level High-Risk cells using SIDISH breast cancer single-cell dataset and visualize your results](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/turorial_4_precision_medicine.ipynb)
 
 If you find the tool is useful to your study, please consider citing the SIDISH [manuscript](https://www.researchsquare.com/article/rs-5921999/v1).
 
