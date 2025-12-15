@@ -91,7 +91,7 @@ To download the Lung Adenocarcinoma single-cell data as well as the bulk and pai
 [Tutorial 3: Perform in silico perturbation using the LUAD dataset and visualize therapeutic effects](https://github.com/mcgilldinglab/SIDISH/blob/main/tutorials/tutorial_3_perturbation.ipynb) 
 
 
-If you find the tool is useful to your study, please consider citing the SIDISH [manuscript](https://www.researchsquare.com/article/rs-5921999/v1).
+If you find the tool is useful to your study, please consider citing the SIDISH [manuscript](https://www.nature.com/articles/s41467-025-66162-4).
 
 ## Contact
 [Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)
