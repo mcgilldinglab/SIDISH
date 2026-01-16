@@ -142,6 +142,47 @@ def plot_umap_differential(ax, umap_combined):
     ax.legend(handles, labels, loc="upper left", fontsize=12, bbox_to_anchor=(0.95, 0.75), frameon=False)
 
 
+def map_event_column(val):
+        """
+        Strictly maps survival event status to binary integers (0 or 1).
+
+        This function enforces a strict schema for event data to prevent silent errors during survival analysis. It accepts case-insensitive string labels or numeric binary values.
+
+        Parameters
+        ----------
+        val : str, int, or float
+            The value representing the event status. 
+            Accepted values:
+            - Strings: Dead (maps to 1), Alive (maps to 0).
+            - Numbers: 1 and 0
+
+        Returns
+        -------
+        int
+            Returns 1 if the event occurred (Dead) and 0 if censored (Alive).
+
+        Raises
+        ------
+        ValueError
+            If val is anything other than the accepted string or numeric inputs (e.g., 'censored', 'unknown', 2, NaN).
+        """
+        s = str(val).strip().lower()
+        
+        # 1. Check explicit strings
+        if s == "dead": return 1
+        if s == "alive": return 0
+        
+        # 2. Check numeric 0/1 (handles 1, 1.0, "1", "0.0")
+        try:
+            num = float(s)
+            if num == 1.0: return 1
+            if num == 0.0: return 0
+        except ValueError:
+            pass
+            
+        # 3. Raise Error for anything else
+        raise ValueError(f"Invalid survival event found: '{val}'. " f"The status column must only contain 'Dead', 'Alive', 1, or 0.")
+
 def preprocess(
     adata, 
     bulk, 
@@ -226,8 +267,7 @@ def preprocess(
         
         bulk = pd.concat([survival_df, data], axis=1)
         bulk.rename(columns={survival_: "duration", status: "event"}, inplace=True)
-        change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]
-        bulk["event"] = change
+        bulk["event"] = bulk["event"].apply(map_event_column)
 
         ## Optional UMAP and batch correction using Harmony
         if batch_correction:
@@ -276,8 +316,7 @@ def preprocess(
         # Merge survival metadata; map event to {0,1}
         bulk = pd.concat([survival_df, data], axis=1)
         bulk.rename(columns={survival_: "duration", status: "event"}, inplace=True)
-        change = [1 if str(i).strip().lower() == "dead" else 0 for i in bulk["event"].values]
-        bulk["event"] = change
+        bulk["event"] = bulk["event"].apply(map_event_column)
         
         return adata, bulk
 
