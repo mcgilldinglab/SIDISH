@@ -57,7 +57,7 @@ Installing the SIDISH Package
 pip install .
 ```
 
-2. Developer Mode Installation
+2. Developer Mode Installation (Recommended)
 ```
 pip install -e .
 ```
