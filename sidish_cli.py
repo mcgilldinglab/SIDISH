@@ -13,6 +13,9 @@ import argparse
 import json
 import sys
 
+from sidish_env import load_env
+load_env()
+
 from sidish_workflow import run_workflow_from_config, PreflightError
 
 

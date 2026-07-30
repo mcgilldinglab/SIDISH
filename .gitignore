@@ -28,6 +28,8 @@ payloads/
 
 # ---- Agent run artifacts ----
 outputs/
+output/
+tmp/
 reports/
 figures/
 *.log

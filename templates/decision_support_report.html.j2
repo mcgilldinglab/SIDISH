@@ -26,6 +26,9 @@
   th{background:#edf2f7;color:var(--blue)}ul{margin:5px 0 8px;padding-left:19px}li{margin:3px 0}
   .warning{border-left:4px solid var(--amber);background:#fff8e8;padding:8px 10px;margin:9px 0}
   .stop{border-left:4px solid var(--red);background:#fff1f1;padding:8px 10px;margin:9px 0}
+  .figbox{border:1px solid var(--line);background:#fff;border-radius:4px;padding:11px 11px 7px;margin:11px 0;break-inside:avoid}
+  .figcap{font-size:10.5px;color:var(--muted);margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+  .figcap b{color:var(--blue)}
   .footer{position:absolute;left:15mm;right:15mm;bottom:7mm;border-top:1px solid var(--line);padding-top:5px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
   .sign{height:38px;border-bottom:1px solid #7b8793;margin-top:10px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;word-break:break-all}
   @media print{body{background:#fff}.page{margin:0;box-shadow:none}}
@@ -77,6 +80,7 @@
     <div class="card"><div class="metric">{{ ctx.burden.n_cells or "-" }}</div><div>Total {{ "dataset" if ctx.analysis_scope == "cohort" else "sample" }} cells</div></div>
     <div class="card"><div class="metric">{{ "%.1f"|format(ctx.burden.fraction*100) if ctx.burden else "-" }}%</div><div>High-risk fraction</div></div>
   </div>
+  {% if figures and figures.burden %}<div class="figbox">{{ figures.burden|safe }}<div class="figcap"><b>Figure 1. Model-labelled high-risk burden.</b> Share of analysed cells receiving the SIDISH high-risk label. This is a {{ "dataset-level" if ctx.analysis_scope == "cohort" else "sample-level" }} fraction, <b>not</b> an individual probability of recurrence, death, or treatment response.</div></div>{% endif %}
   <div class="warning"><strong>Interpretation boundary:</strong> this is a fraction of {{ "all cells in the uploaded dataset" if ctx.analysis_scope == "cohort" else "sampled cells from the selected patient/sample" }} receiving a model label - not an individual probability of recurrence, death, or treatment response.</div>
   <h3>High-risk cell-type composition</h3>
   {% if ctx.celltype_available and ctx.composition %}
@@ -99,6 +103,7 @@
   <p><span class="tag cohort">Cohort-level association</span> These results characterize the analysed high-risk program and are not automatically patient-specific.</p>
   <h3>Marker genes</h3>
   <div class="card">{{ ctx.markers|join(", ") if ctx.markers else "No validated marker list available." }}</div>
+  {% if figures and figures.enrichment %}<div class="figbox">{{ figures.enrichment|safe }}<div class="figcap"><b>Figure 2. Pathway enrichment of the high-risk marker program.</b> Bars show enrichment strength as &minus;log10(q); longer bars = smaller q-values. <b>q-values are from the bundled manuscript enrichment table</b> and are not re-estimated for this case or marker threshold.</div></div>{% endif %}
   <h3>Pathway-table overlaps</h3>
   <table><tr><th>Pathway</th><th>Reference q-value</th><th>Overlapping genes</th><th>Use</th></tr>
     {% for p in ctx.activated_pathways %}<tr><td>{{ p.name }}</td><td>{{ p.q_value }}</td><td>{{ p.genes|join(", ") }}</td><td>Prioritize an orthogonal pathway assay after confirming the cell compartment.</td></tr>{% endfor %}
@@ -113,6 +118,7 @@
   <h2>3. Target, pathway, and drug perturbation hypotheses</h2>
   {% if ctx.focused_report %}<div class="intended"><strong>Focused perturbation:</strong> {{ ctx.focus_targets|join(", ") }}. Tables on this page are filtered to this requested target unless otherwise stated.</div>{% endif %}
   <p><span class="tag hyp">Computational hypothesis</span> Perturbations simulate target-plus-PPI-network expression ablation and reclassification; they are not literal gene editing or pharmacologic response predictions.</p>
+  {% if figures and figures.perturbation %}<div class="figbox">{{ figures.perturbation|safe }}<div class="figcap"><b>Figure 3. Modelled reduction in high-risk cells by single-target perturbation.</b> Higher bar = larger modelled reduction.{% if ctx.focused_report %} Report focus target(s) are shown in red.{% endif %} All values are model perturbations requiring orthogonal validation; the dual-target and pathway results below are not shown here.</div></div>{% endif %}
   <h3>Target-network perturbation</h3>
   <table><tr><th>Target</th><th>Model-labelled high-risk reduction</th><th>Scope</th><th>Suggested use</th></tr>
     {% for r in ctx.target_rows %}<tr><td>{{ r.target }}</td><td>{{ r.reduction }}%</td><td>{{ ctx.scopes["model.target_perturbation"] }}</td><td>Orthogonal target and pathway validation.</td></tr>{% endfor %}

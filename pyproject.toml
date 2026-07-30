@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-app = ["openai>=1.50,<3", "playwright>=1.45,<2", "streamlit>=1.60,<2", "weasyprint>=62,<70"]
+app = ["openai>=1.50,<3", "playwright>=1.45,<2", "python-dotenv>=1.0,<2", "streamlit>=1.60,<2", "weasyprint>=62,<70"]
 test = ["pytest>=8,<9", "pytest-cov>=5,<7"]
 
 [tool.setuptools.packages.find]

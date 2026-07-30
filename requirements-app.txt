@@ -1,5 +1,6 @@
 # Install into a supported Python 3.11 environment after the SIDISH scientific stack.
 jinja2>=3.1,<4
+python-dotenv>=1.0,<2
 openai>=1.50,<3
 playwright>=1.45,<2
 pydantic>=2.8,<3

@@ -22,6 +22,7 @@ dependencies:
   - pyyaml>=6,<7
   - pip:
       - torch-geometric>=2.5,<3
+      - python-dotenv>=1.0,<2
       - openai>=1.50,<3
       - streamlit>=1.60,<2
       - playwright>=1.45,<2

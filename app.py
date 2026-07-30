@@ -6,6 +6,9 @@ from pathlib import Path
 import hmac
 import os
 
+from sidish_env import load_env
+load_env()
+
 import streamlit as st
 
 from sidish_agent_session import SIDISHAgentSession

@@ -14,6 +14,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sidish_contracts import Artifact, SIDISHCaseResult
 from sidish_policy import DISCLAIMER, enforce_text
 
+try:
+    from report_figures import build_summary_figures
+except Exception:  # pragma: no cover - figures are optional
+    def build_summary_figures(ctx):  # type: ignore
+        return {"burden": None, "perturbation": None, "enrichment": None}
+
 
 HERE = Path(__file__).resolve().parent
 
@@ -222,7 +228,7 @@ def render_case_report(result_path: str | Path, out_dir: str | Path | None = Non
     report_evidence = [item for key, item in result.evidence.items() if key in report_keys]
     html = tmpl.render(
         result=result, metadata=result.metadata, generated_date=datetime.date.today().isoformat(),
-        summary=summary, disclaimer=DISCLAIMER, ctx=ctx,
+        summary=summary, disclaimer=DISCLAIMER, ctx=ctx, figures=build_summary_figures(ctx),
         evidence=report_evidence, qc=result.qc,
         release_status=("REVIEWED - research-use discussion only"
                         if result.signoff.status == "reviewed" else
