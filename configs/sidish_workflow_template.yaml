@@ -1,0 +1,45 @@
+# SIDISH analysis workflow - reload a TRAINED run and produce the structured
+# clinician decision-support report.
+# Run:  python sidish_cli.py preflight -c configs/sidish_workflow_template.yaml
+#       python sidish_cli.py run       -c configs/sidish_workflow_template.yaml
+mode: analysis
+random_seed: 0
+
+case:
+  case_id: CID3946-reference
+  disease_label: Breast cancer
+  root: ./outputs/cases
+
+preflight:
+  require_ppi: true          # perturbation needs the PPI files (warn if missing)
+
+data:
+  adata_path: ./BREAST_CANCER/adata_SIDISH.h5ad
+  # Known breast/lung/pancreatic cases always use their locked manuscript bulk.
+  # For another disease set bulk_csv to a matched duration,event,<genes...> CSV.
+  bulk_csv:   null
+  run_dir:    ./BREAST_CANCER/                     # trained run (vae_transfer, deepCox)
+  cancer_type: breast                              # breast | lung | pancreatic reuse published bulk
+
+model:
+  device: cpu                # no CUDA on Apple Silicon; use cuda:1 on the lab server
+  percentile: 0.90           # BRCA Pcut
+
+analysis:
+  patient: CID3946           # null -> auto-pick the highest high-risk-burden patient
+  patient_specific: true     # perturbation restricted to this patient's cells
+  marker_logfc: 1.5
+  perturbation:
+    scope: markers           # markers (top n_genes) | all (genome-wide, GPU/lab) | explicit
+    n_genes: 50
+    genes: null              # explicit gene list when scope=explicit
+
+report:
+  use_llm: false             # true needs an OpenAI-compatible endpoint (see llm:)
+  survival_only: false       # true -> drop all figures except the KM plot
+  make_pdf: true             # also write the reviewed six-page PDF artifact
+
+llm:                         # optional; leave null for the deterministic report
+  base_url: null             # e.g. https://generativelanguage.googleapis.com/v1beta/openai/
+  api_key: null
+  model: null                # e.g. gemini-flash-lite-latest

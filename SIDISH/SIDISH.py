@@ -557,12 +557,12 @@ class SIDISH:
                 if self.use_spatial_graph and self.spatial_graph is not None:
                     self.vae = VAE(epochs=self.epochs_3, adata=self.adata, z_dim=self.latent_size, layer_dims=self.layer_dims, lr=self.lr_3, dropout=self.dropout_1, device=self.device, seed=self.seed, gcn_dims=[32, self.latent_size])
                     self.vae.initialize(self.adata, spatial_graph=self.spatial_graph, W=self.W_matrix, batch_size=self.batch_size, num_neighbors=self.k_neighbors, num_workers=self.num_workers)
-                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path), map_location=self.device), strict=False)
                 
                 else:
                     self.vae = VAE(self.epochs_3,self.adata,self.latent_size, self.layer_dims,self.lr_3, self.dropout_1,self.device, self.seed)
                     self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type,self.num_workers)
-                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+                    self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path), map_location=self.device), strict=False)
                 
                 self.vae.train()
 
@@ -666,20 +666,20 @@ class SIDISH:
             print("########################################## Using Spatial Graph in VAE ##########################################")
             self.vae = VAE(epochs=self.epochs_1, adata=self.adata, z_dim=self.latent_size, layer_dims=self.layer_dims, lr=self.lr_1, dropout=self.dropout_1, device=self.device, seed=self.seed, gcn_dims=[32, self.latent_size]) 
             self.vae.initialize(self.adata, W=self.W_matrix, batch_size=self.batch_size, num_workers=self.num_workers, spatial_graph=self.spatial_graph, num_neighbors=self.k_neighbors)
-            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path), map_location=self.device), strict=False)
         
         else:
             print("########################################## Using Dense VAE ##########################################")
             self.vae = VAE(self.epochs_1,self.adata,self.latent_size, self.layer_dims, self.lr_1, self.dropout_1,self.device, self.seed)
             self.vae.initialize(self.adata, self.W_matrix, self.batch_size, self.type, self.num_workers)
-            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path)))
+            self.vae.model.load_state_dict(torch.load("{}vae_transfer".format(self.path), map_location=self.device), strict=False)
 
 
         self.encoder = self.vae
         self.W_vector = self.X_train[:, -1]
 
         self.deepCox_model = DeepCox(self.X_train, self.y_train, self.W_vector, self.hidden, self.encoder, self.device,self.batch_size, self.seed, self.lr_2, self.dropout_2)
-        self.deepCox_model.model.load_state_dict(torch.load("{}deepCox".format(self.path)))
+        self.deepCox_model.model.load_state_dict(torch.load("{}deepCox".format(self.path), map_location=self.device))
 
         print("✅ Reload complete – VAE and DeepCox restored")
 
@@ -779,9 +779,10 @@ class SIDISH:
         ranked_genes_df = sc.get.rank_genes_groups_df(self.adata, group=group, key=f"SIDISH_deg")
 
         # Filter for upregulated and downregulated genes
-        self.upregulated_genes = ranked_genes_df[(ranked_genes_df["logfoldchanges"] > logfc_threshold) & (ranked_genes_df["pvals"] < pval_threshold)]["names"].values
+        pcol = "pvals_adj" if "pvals_adj" in ranked_genes_df.columns else "pvals"
+        self.upregulated_genes = ranked_genes_df[(ranked_genes_df["logfoldchanges"] > logfc_threshold) & (ranked_genes_df[pcol] < pval_threshold)]["names"].values
 
-        self.downregulated_genes = ranked_genes_df[(ranked_genes_df["logfoldchanges"] < -logfc_threshold) & (ranked_genes_df["pvals"] < pval_threshold)]["names"].values
+        self.downregulated_genes = ranked_genes_df[(ranked_genes_df["logfoldchanges"] < -logfc_threshold) & (ranked_genes_df[pcol] < pval_threshold)]["names"].values
 
         return self.upregulated_genes, self.downregulated_genes
 
@@ -794,6 +795,8 @@ class SIDISH:
         self.h_dict = {}
         
         n_hcells = (self.adata.obs.SIDISH == "h").sum()
+        if n_hcells == 0:
+            raise ValueError("perturbation requires at least one SIDISH high-risk cell")
 
         for gene, data in tqdm(zip(self.genes, self.optimized_results), total=len(self.genes), desc="Stats"):
 
@@ -817,7 +820,10 @@ class SIDISH:
             # --- 2  one-sided Wilcoxon on risk-score delta ---
             delta = adata_p.obs["perturbation_score"].values
             self.delta_change[gene] = delta.mean()
-            _, p_score = wilcoxon(delta, alternative="greater")
+            if np.allclose(delta, 0):
+                p_score = 1.0
+            else:
+                _, p_score = wilcoxon(delta, alternative="greater")
             
             self.h_to_b_dict[gene] = h_to_b
             self.b_to_h_dict[gene] = b_to_h
@@ -841,7 +847,7 @@ class SIDISH:
                 
         perturbation = InSilicoPerturbation(self.adata)
         perturbation.setup_ppi_network(threshold=0.7)
-        self.optimized_results = perturbation.run_parallel_processing(self.adata, n_jobs=4)
+        self.optimized_results = perturbation.run_parallel_processing(self.adata, n_jobs=n_jobs)
         self.percent_change, self.delta_change, self.p_flip, self.p_score = self.analyze_perturbation_effects()
         
         return self.percent_change, self.delta_change, self.p_flip, self.p_score
@@ -1103,7 +1109,7 @@ class SIDISH:
         plt.show()
 
 
-    def run_double_Perturbation(self,genes, top_n = 20, threshold=0.8):
+    def run_double_Perturbation(self, genes, top_n=20, threshold=0.7):
 
         self.percent_change_double, self.p_flip_double = {}, {}
 
@@ -1134,13 +1140,13 @@ class SIDISH:
 
         self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
 
-        self.top_genes_flip = self.percentage_df_flip.Genes.values
-
-        self.top_genes = self.top_genes_flip
-        print(self.top_genes_flip[:top_n] == genes)
-
-        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
+        available = set(map(str, self.adata.var_names))
+        requested = [str(g) for g in list(genes)[:top_n] if str(g) in available]
+        self.top_genes = np.array(requested)
+        all_combinations = list(itertools.combinations(self.top_genes, 2))
         n_hcells = (self.adata.obs.SIDISH == "h").sum()
+        if n_hcells == 0:
+            raise ValueError("double perturbation requires at least one SIDISH high-risk cell")
         self.percentage_double_dict = {}
         self.pvalue_double_dict = {}
         self.ppi_handler = PPINetworkHandler(self.adata)
@@ -1154,9 +1160,9 @@ class SIDISH:
                 network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
                     
                 if not network_df.empty:
-                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
+                    adata_p = GenePerturbationUtils.adjust_expression(adata_p, g, network_df)
                 else:
-                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
+                    adata_p.X = GenePerturbationUtils.knockout_gene(adata_p, g).tocsr()
                     
             adata_p = self.annotateCells(adata_p, self.percentile_cells, mode="no", perturbation=True)
 
@@ -1186,7 +1192,7 @@ class SIDISH:
 
 
 
-    def run_double_Perturbation_score(self, genes, top_n = 20, threshold=0.8):
+    def run_double_Perturbation_score(self, genes, top_n=20, threshold=0.7):
 
         self.p_score_double = {}
         self.delta_change_double = {}
@@ -1218,11 +1224,9 @@ class SIDISH:
 
         self.adata = sc.read_h5ad("{}adata_SIDISH.h5ad".format(self.path))
         
-        self.top_genes = self.top_genes_score
-        print(self.top_genes_score[:top_n] == genes)
-
-
-        all_combinations = list(itertools.permutations(self.top_genes[:top_n], 2))
+        available = set(map(str, self.adata.var_names))
+        self.top_genes = np.array([str(g) for g in list(genes)[:top_n] if str(g) in available])
+        all_combinations = list(itertools.combinations(self.top_genes, 2))
         self.percentage_double_dict = {}
         self.pvalue_double_dict = {}
         self.ppi_handler = PPINetworkHandler(self.adata)
@@ -1236,9 +1240,9 @@ class SIDISH:
                 network_df = self.ppi_handler.ppi_df[self.ppi_handler.ppi_df["Source"].isin(neighbors) | self.ppi_handler.ppi_df["Target"].isin(neighbors)]
                     
                 if not network_df.empty:
-                    adata_p = GenePerturbationUtils.adjust_expression(self.adata, g, network_df)
+                    adata_p = GenePerturbationUtils.adjust_expression(adata_p, g, network_df)
                 else:
-                    adata_p.X = GenePerturbationUtils.knockout_gene(self.adata, g).tocsr()
+                    adata_p.X = GenePerturbationUtils.knockout_gene(adata_p, g).tocsr()
                     
             adata_p = self.annotateCells(adata_p, self.percentile_cells, mode="no", perturbation=True)
             
@@ -1246,7 +1250,10 @@ class SIDISH:
             # --- 2  one-sided Wilcoxon on risk-score delta ---
             delta_double = adata_p.obs["perturbation_score"].values
             self.delta_change_double["{}+{}".format(combination[0], combination[1])] = delta_double.mean()
-            _, p_score_ = wilcoxon(delta_double, alternative="greater")
+            if np.allclose(delta_double, 0):
+                p_score_ = 1.0
+            else:
+                _, p_score_ = wilcoxon(delta_double, alternative="greater")
             self.p_score_double["{}+{}".format(combination[0], combination[1])] = p_score_
 
         return self.delta_change_double, self.p_score_double

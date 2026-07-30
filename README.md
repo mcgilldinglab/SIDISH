@@ -1,11 +1,26 @@
 # **SIDISH**  
 **SIDISH Identifies High-Risk Disease-Associated Cells and Biomarkers by Integrating Single-Cell Depth and Bulk Breadth**
 
+> **This branch (`codex/SIDISH_agent`) adds the SIDISH Agent** — a research-use clinician
+> decision-support workspace built on top of the core SIDISH package. The core library and
+> tutorials are unchanged in purpose; the Agent wraps them in a case-bound chat, reproducible
+> analysis jobs, evidence provenance, and a decision-support report. See
+> [SIDISH Agent](#sidish-agent) below.
+
 ## Table of Contents
 - [Key Capabilities](#key-capabilities)
 - [Methods Overview](#methods-overview)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [Tutorials](#tutorials)
+- [SIDISH Agent](#sidish-agent)
+  - [What the Agent does](#what-the-agent-does)
+  - [Agent installation](#agent-installation)
+  - [Configuring approved assets](#configuring-approved-assets)
+  - [Running the Agent](#running-the-agent)
+  - [Data routing](#data-routing)
+  - [Command-line workflows](#command-line-workflows)
+  - [Safety and scope](#safety-and-scope)
 - [Contact](#contact)
 
 ## Key Capabilities
@@ -75,7 +90,7 @@ pip install -r requirements.txt
 ```
 
 
-## Tutorials:
+## Tutorials
 To download the Lung Adenocarcinoma single-cell data as well as the bulk and paired survival data used in the tutorial, follow this [link](https://drive.google.com/file/d/1myrifg9f4fvFgunwpDzkPhlZ9AZUxLuX/view?usp=sharing).
 
 ### Preprocessing single-cell and bulk data  
@@ -92,6 +107,122 @@ To download the Lung Adenocarcinoma single-cell data as well as the bulk and pai
 
 
 If you find the tool is useful to your study, please consider citing the SIDISH [manuscript](https://www.nature.com/articles/s41467-025-66162-4).
+
+---
+
+# SIDISH Agent
+
+**SIDISH Agent** is a research-use workspace around SIDISH. It combines a case-bound chat,
+reproducible analysis jobs, evidence provenance, scientific and clinical review, and a
+six-page decision-support report. It is designed to help an oncologist, pathologist, or
+molecular tumour board decide what to investigate next.
+
+> **Research use only.** SIDISH Agent does **not** diagnose disease, estimate an individual's
+> absolute outcome, select treatment, or replace guideline-based care. All biological and
+> therapeutic outputs are computational observations or hypotheses requiring orthogonal
+> confirmation and qualified clinician review.
+
+## What the Agent does
+- Pseudonymous, case-isolated workspaces with audit trails.
+- A **Chat with SIDISH** interface that runs only the capability requested, caches results,
+  accepts named genes/pathways/drugs, and renders perturbation UMAPs and statistics inline.
+- Patient-column discovery after upload and an explicit analysis-scope selector: analyse one
+  patient/sample or every cell in the uploaded single-cell dataset (switchable without retraining).
+- Patient/sample-specific or dataset-wide high-risk burden, cohort marker/pathway/survival
+  context, and target-plus-PPI-network perturbation.
+- First-class `pathway_perturbation` and `drug_perturbation` tools with explicit evidence-scope labels.
+- HTML/PDF decision-support reports with QC, provenance, limitations, and two-reviewer sign-off —
+  either complete or focused on a single requested target.
+- Consent-gated durable training jobs, with a per-case training-iteration setting (1–100).
+- Fail-closed clinician mode: mock evidence is never silently substituted.
+
+## Agent installation
+The Agent uses a dedicated environment. From the repository root:
+
+```bash
+conda env create -f environment.yml
+conda activate sidish-agent
+cp .env.example .env          # then edit .env (see below)
+python skills/sidish-report-orchestrator/scripts/check_python_env.py
+python -m unittest discover -s tests -v
+```
+
+Recommended Python is 3.11. Scientific and app dependencies are declared in `environment.yml`,
+`pyproject.toml`, and `requirements-app.txt`.
+
+## Configuring approved assets
+Copy `.env.example` to `.env` and point each supported cancer to its locked manuscript
+bulk-survival table and, when available, its trained reference run:
+
+```bash
+SIDISH_BREAST_BULK=/approved/BREAST_CANCER/bulk_result.csv
+SIDISH_BREAST_RUN=/approved/BREAST_CANCER
+SIDISH_LUNG_BULK=/approved/LUNG_CANCER/bulk_result.csv
+SIDISH_LUNG_RUN=/approved/LUNG_CANCER
+SIDISH_PANCREATIC_BULK=/approved/PANCREAS_CANCER/bulk_result.csv
+SIDISH_PANCREATIC_RUN=/approved/PANCREAS_CANCER
+SIDISH_PPI_DIR=/approved/PPI            # HIPPIE + STRING files for perturbation
+SIDISH_TRAINING_DEVICE=cuda:1
+```
+
+Large reference data, PPI files, trained models, and run outputs are **not** tracked in git
+(see `.gitignore`); configure their locations through `.env`. Set `SIDISH_LLM_PROVIDER=auto`
+to use Gemini/OpenAI when a key is present, a configured compatible endpoint, or local Ollama
+as the no-key fallback. If no provider is available, a validated local entity parser is used.
+
+## Running the Agent
+```bash
+export SIDISH_APP_PASSWORD='use-a-secret-from-your-secret-manager'
+streamlit run app.py --server.address 127.0.0.1
+```
+
+Create a pseudonymous case, upload a preprocessed `.h5ad`, and choose the cancer reference.
+After validation, choose the `AnnData.obs` patient/sample column and one identifier. Open
+**Chat with SIDISH** and ask the first analysis question; if training is required, SIDISH
+explains why and asks for confirmation before submitting a durable training task. Read-only
+questions (e.g. raw cell counts) never trigger training. Once trained, each question runs only
+its required calculation, reusing cached models and results. Ask **generate the final report**
+to complete only the missing evidence and expose the HTML/PDF downloads below the conversation.
+
+On a Mac without CUDA, training falls back to CPU and is much slower; run training where
+`SIDISH_TRAINING_DEVICE` points to an available CUDA device. See
+[`LIVE_SETUP.md`](LIVE_SETUP.md) for full live-data configuration and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the evidence and safety boundaries.
+
+## Data routing
+The upload policy is enforced in the UI, preflight, and training workflow:
+
+1. Breast, lung, or pancreatic single-cell data uses the corresponding locked SIDISH manuscript
+   bulk RNA-seq plus survival reference; a user-uploaded bulk cohort is not substituted.
+2. Any other disease requires a matched bulk-survival CSV with the exact layout
+   `duration,event,<gene1>,<gene2>,...`, validated row-by-row before training.
+3. A newly uploaded single-cell dataset is trained against the routed bulk cohort before
+   patient-level analysis; a model trained on a different dataset is never silently reused.
+4. Training requires unique single-cell gene names, at least 500 shared genes, and at least 80%
+   coverage of the routed bulk gene set.
+
+## Command-line workflows
+```bash
+python sidish_cli.py preflight -c configs/sidish_workflow_template.yaml
+python sidish_cli.py run       -c configs/sidish_workflow_template.yaml
+python sidish_cli.py report --patient CID3946 --pdf
+```
+
+Long training jobs should use the durable runner:
+
+```bash
+python skills/sidish-report-orchestrator/scripts/sidish_job.py submit \
+  --config configs/sidish_training_template.yaml --job-name new-case-training
+```
+
+## Safety and scope
+- Use pseudonymous IDs; do not place direct identifiers in chat.
+- Keep clinician mode fail-closed (`SIDISH_DEMO_MODE=0`).
+- Restrict app binding, configure authentication, and use encrypted institutional storage
+  before handling real health information.
+- Require both scientific and clinical sign-off before releasing a report, and complete the
+  release gates in [`docs/CLINICAL_RELEASE_GATES.md`](docs/CLINICAL_RELEASE_GATES.md).
+- Do not use the software for autonomous diagnosis or treatment selection.
 
 ## Contact
 [Yasmin Jolasun](mailto:yasmin.jolasun@mail.mcgill.ca) and [Jun Ding](mailto:jun.ding@mcgill.ca)

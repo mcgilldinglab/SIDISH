@@ -8,6 +8,19 @@ from torch_geometric.loader import NeighborLoader
 from torch_geometric.data import Data
 import os
 
+
+def _as_dense_array(matrix):
+    """Return an expression matrix as a NumPy array.
+
+    AnnData permits ``X`` to be either a dense NumPy array or a SciPy sparse
+    matrix. Sparse matrices expose ``toarray()``, while NumPy arrays are
+    already dense and must not be sent through ``todense()``.
+    """
+    if hasattr(matrix, "toarray"):
+        return matrix.toarray()
+    return np.asarray(matrix)
+
+
 class VAE():
     def __init__(self, epochs, adata, z_dim, layer_dims, lr, dropout, device, seed, gcn_dims=None):
         super(VAE, self).__init__()
@@ -62,11 +75,11 @@ class VAE():
 
         ## Get the cells by genes matrix X from the adata variable
         if type == 'Dense':
-            data_list = [np.array(self.adata.X.todense()), self.W]
-            data_list_total = [np.array(self.adata.X.todense()), self.W]
+            expression = _as_dense_array(self.adata.X)
         else:
-            data_list = [np.array(self.adata.X), self.W]
-            data_list_total = [np.array(self.adata.X), self.W]
+            expression = np.asarray(self.adata.X)
+        data_list = [expression, self.W]
+        data_list_total = [expression, self.W]
 
         ## Prep single cell data for training in VAE -- cell by genes matrix X with gene weight matrix W
         data_list = [torch.from_numpy(np.array(d)).type(torch.float) for d in data_list]
@@ -235,4 +248,3 @@ class VAE():
         if clustering:
             self.adata.obsm['base_latent'] = np.array(self.base_TZ).astype(np.float32)
         return self.adata
-

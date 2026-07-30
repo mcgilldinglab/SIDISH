@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIDISH Precision Medicine Report — {{ patient.patient_id }}</title>
+<style>
+  /* Offline-safe system fonts (no external fetch — matters for hospital use). */
+  :root{
+    --ink:#1a2330; --muted:#5b6675; --line:#d9dee6; --paper:#ffffff;
+    --clinical:#1f4e79;      /* deep clinical blue */
+    --highrisk:#c0392b;      /* SIDISH high-risk red */
+    --band:#f4f6f9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:#eef1f5; color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14.5px; line-height:1.6;
+  }
+  .page{max-width:820px; margin:24px auto; background:var(--paper);
+    box-shadow:0 1px 4px rgba(20,30,50,.12); }
+  /* Header */
+  .masthead{padding:22px 34px 16px; border-bottom:3px solid var(--clinical);}
+  .masthead .kicker{font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--clinical); font-weight:700;}
+  .masthead h1{font-family:Georgia,"Times New Roman",serif; font-weight:700;
+    font-size:23px; margin:4px 0 2px;}
+  .masthead .sub{color:var(--muted); font-size:12.5px;}
+  .banner{background:var(--band); border-bottom:1px solid var(--line); color:var(--muted);
+    font-size:12px; padding:7px 34px;}
+  /* Patient block */
+  .patient{display:grid; grid-template-columns:1fr 1fr; gap:2px 26px;
+    padding:16px 34px; background:var(--band); border-bottom:1px solid var(--line);}
+  .patient .row{display:flex; gap:8px; font-size:13px; padding:2px 0;}
+  .patient .k{color:var(--muted); min-width:120px;}
+  .patient .v{font-weight:600;}
+  .badge{display:inline-block; background:var(--highrisk); color:#fff;
+    font-size:11px; font-weight:700; padding:2px 8px; border-radius:3px;}
+  /* Executive summary */
+  .execsum{padding:14px 34px; background:#eef4fb; border-bottom:1px solid var(--line);}
+  .execsum .h{font-family:Georgia,serif; font-weight:700; color:var(--clinical);
+    font-size:14px; letter-spacing:.02em; margin-bottom:4px;}
+  .execsum p{margin:.3em 0; font-size:13.5px;}
+  section h4{font-family:Georgia,serif; font-size:14px; color:var(--clinical); margin:.9em 0 .3em;}
+  /* Sections */
+  main{padding:6px 34px 10px;}
+  section{padding:16px 0; border-bottom:1px solid var(--line);}
+  section:last-child{border-bottom:none;}
+  .sec-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .sec-num{font-family:Georgia,serif; color:var(--clinical); font-size:20px;
+    font-weight:700; line-height:1;}
+  .sec-title{font-family:Georgia,serif; font-size:17px; font-weight:700; margin:0;}
+  .section-body p{margin:.5em 0;}
+  .section-body ul{margin:.4em 0 .6em 1.1em; padding:0;}
+  .section-body li{margin:.2em 0;}
+  .section-body table{border-collapse:collapse; width:100%; margin:.6em 0; font-size:13px;}
+  .section-body th,.section-body td{border:1px solid var(--line); padding:6px 9px; text-align:left;}
+  .section-body th{background:var(--band); font-weight:700;}
+  figure{margin:.8em 0; text-align:center;}
+  figure img{max-width:100%; border:1px solid var(--line);}
+  figcaption{color:var(--muted); font-size:11.5px; margin-top:4px;}
+  /* Footer */
+  footer{padding:14px 34px 26px; color:var(--muted); font-size:11.5px;}
+  footer .disc{border-left:3px solid var(--clinical); padding-left:10px;}
+  @media print{
+    body{background:#fff;} .page{box-shadow:none; margin:0; max-width:none;}
+    section{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="masthead">
+    <div class="kicker">SIDISH · Agentic Precision Medicine</div>
+    <h1>Molecular Analysis Report</h1>
+    <div class="sub">Single-cell high-risk profiling and in-silico therapeutic prioritization
+      &nbsp;·&nbsp; generated {{ generated_date }} &nbsp;·&nbsp; {{ meta.model_version }}</div>
+  </div>
+
+  <div class="banner"><strong>Molecular tumor board report.</strong> Computational precision-oncology
+    analysis to support clinical decision-making; predictions warrant confirmation and physician review.</div>
+
+  <div class="patient">
+    <div class="row"><span class="k">Patient ID</span><span class="v">{{ patient.patient_id }}
+      &nbsp;<span class="badge">High-risk {{ (features.patient_high_risk_fraction*100)|round(1) }}%</span></span></div>
+    <div class="row"><span class="k">Disease</span><span class="v">{{ patient.disease }} — {{ patient.cancer_subtype }}</span></div>
+    <div class="row"><span class="k">Age / Sex</span><span class="v">{{ patient.age }} / {{ patient.sex }}</span></div>
+    <div class="row"><span class="k">Stage</span><span class="v">{{ patient.stage }}</span></div>
+    <div class="row"><span class="k">Prior treatment</span><span class="v">{{ patient.prior_treatment }}</span></div>
+    <div class="row"><span class="k">Data source</span><span class="v">{{ patient.data_source }}</span></div>
+  </div>
+
+  {% if executive_summary %}<div class="execsum">
+    <div class="h">Executive summary</div>
+    {{ executive_summary|safe }}
+  </div>{% endif %}
+
+  <main>
+    <section>
+      <div class="sec-head"><span class="sec-num">1</span>
+        <h2 class="sec-title">Patient / cohort profile</h2></div>
+      {{ section1|safe }}
+    </section>
+    <section>
+      <div class="sec-head"><span class="sec-num">2</span>
+        <h2 class="sec-title">Single-cell and molecular feature analysis</h2></div>
+      {{ section2|safe }}
+    </section>
+    <section>
+      <div class="sec-head"><span class="sec-num">3</span>
+        <h2 class="sec-title">In-silico perturbation and candidate therapeutic prioritization</h2></div>
+      {{ section3|safe }}
+    </section>
+    <section>
+      <div class="sec-head"><span class="sec-num">4</span>
+        <h2 class="sec-title">Integrated summary and validation recommendations</h2></div>
+      {{ section4|safe }}
+    </section>
+    {% if cost_section %}<section>
+      <div class="sec-head"><span class="sec-num">¥</span>
+        <h2 class="sec-title">Cost estimate</h2></div>
+      {{ cost_section|safe }}
+    </section>{% endif %}
+  </main>
+
+  <footer>
+    <p class="disc">{{ disclaimer }}</p>
+    <p>Generated by SIDISH-Agent (demo). SIDISH: Jolasun et al., <em>Nature Communications</em> 2025.</p>
+  </footer>
+</div>
+</body>
+</html>

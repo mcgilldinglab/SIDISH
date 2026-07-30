@@ -42,12 +42,14 @@ def loss_DeepCox(pred, events, durations, weight=None, train=True):
         pred = pred[idx] # Sort risk predictions by durations
         weight = weight[idx] # Sort patient weight by durations
 
-        hazard_ratio = torch.exp(pred) / weight
+        hazard_ratio = torch.exp(pred).clamp_max(1e12) / weight.clamp_min(1e-6)
         log_risk = torch.log(torch.cumsum(hazard_ratio, dim=0))
 
         uncensored_likelihood = pred.t() - log_risk
         censored_likelihood = uncensored_likelihood * events
         num_observed_events = torch.sum(events)
+        if num_observed_events <= 0:
+            return pred.sum() * 0.0
         neg_likelihood = -torch.sum(censored_likelihood) / num_observed_events
 
     elif train == False:
@@ -55,12 +57,14 @@ def loss_DeepCox(pred, events, durations, weight=None, train=True):
         events = events[idx]
         pred = pred[idx]
 
-        hazard_ratio = torch.exp(pred)
+        hazard_ratio = torch.exp(pred).clamp_max(1e12)
         log_risk = torch.log(torch.cumsum(hazard_ratio, dim=0))
 
         uncensored_likelihood = pred.t() - log_risk
         censored_likelihood = uncensored_likelihood * events
         num_observed_events = torch.sum(events)
+        if num_observed_events <= 0:
+            return pred.sum() * 0.0
         neg_likelihood = -torch.sum(censored_likelihood) / num_observed_events
 
     return neg_likelihood
@@ -99,7 +103,8 @@ class DEEPCOX():
 
         self.X_train[:, -1] = self.weights
         train_dataset = TensorDataset(self.X_train.float(), self.Y_train.float())
-        self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+        # Cox partial likelihood requires risk sets spanning the full training cohort.
+        self.train_loader = DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=False)
 
     def train(self, epochs):
 

@@ -17,6 +17,7 @@ import pandas as pd
 from scipy import stats
 from typing import Literal
 from scipy.spatial.distance import pdist, squareform
+from scipy.sparse import csr_matrix
 from sklearn.neighbors import kneighbors_graph
 import torch_geometric.utils as pyg_utils
 from torch_geometric.data import Data
@@ -94,6 +95,7 @@ def create_spatial_graph(spatial_coords, method='knn', k=5, radius=None, include
         # Remove self-loops if needed
         if not include_self:
             np.fill_diagonal(adjacency, 0)
+        adjacency = csr_matrix(adjacency)
     else:
         raise ValueError(f"Unknown graph creation method: {method}")
     

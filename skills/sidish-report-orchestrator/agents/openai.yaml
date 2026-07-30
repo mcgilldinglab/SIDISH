@@ -1,0 +1,4 @@
+interface:
+  display_name: "SIDISH Report Orchestrator"
+  short_description: "Run SIDISH analysis/report and monitor long training jobs"
+  default_prompt: "Use $sidish-report-orchestrator to preflight, run the high-risk analysis and build the report, or submit/monitor a SIDISH training job."

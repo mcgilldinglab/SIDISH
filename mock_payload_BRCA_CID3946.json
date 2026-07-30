@@ -1,0 +1,81 @@
+{
+  "_note": "Values seeded from the SIDISH paper (Jolasun et al., Nat Commun 2025) for BRCA/TNBC patient CID3946 so the report generator can run BEFORE the live model is wired. Demographic fields marked 'illustrative' are placeholders because scRNA-seq datasets (GSE176078) lack full clinical metadata. Replace this file with sidish_export.py output for the real run.",
+  "meta": {
+    "report_type": "patient",
+    "generated_by": "SIDISH-Agent demo (mock payload)",
+    "research_use_only": true,
+    "model_version": "SIDISH v1.0.0"
+  },
+  "patient": {
+    "patient_id": "CID3946",
+    "disease": "Breast cancer",
+    "cancer_subtype": "Triple-negative (TNBC)",
+    "age": "illustrative: 54",
+    "sex": "Female",
+    "stage": "illustrative: III",
+    "prior_treatment": "illustrative: neoadjuvant chemotherapy",
+    "data_source": "scRNA-seq (GSE176078); bulk + survival: TCGA-BRCA (n=1194)",
+    "metadata_available": false
+  },
+  "cohort_context": {
+    "cohort": "TNBC scRNA-seq (Wu et al. 2021)",
+    "n_cells_total": 42512,
+    "n_high_risk_total": 3789,
+    "high_risk_fraction_cohort": 0.0891,
+    "high_risk_composition_cohort": {
+      "Cancer Epithelial": 0.654, "CAFs": 0.164, "PVL": 0.086,
+      "Normal Epithelial": 0.052, "Myeloid": 0.022, "T-cells": 0.017
+    }
+  },
+  "features": {
+    "patient_high_risk_fraction": 0.155,
+    "patient_rank_in_cohort": "highest high-risk burden of 10 TNBC patients",
+    "contrast_patient": {"patient_id": "CID4523", "high_risk_fraction": 0.0239, "note": "lowest-burden patient, used for contrast"},
+    "celltype_composition": {
+      "Cancer Epithelial": 0.72, "CAFs": 0.11, "PVL": 0.07,
+      "T-cells": 0.05, "Myeloid": 0.03, "Normal Epithelial": 0.02
+    },
+    "enriched_vs_control": ["Cancer Epithelial", "CAFs"],
+    "reduced_vs_control": ["Normal Epithelial", "T-cells"],
+    "marker_genes": [
+      {"gene": "IGFBP7", "note": "ECM / angiogenesis"},
+      {"gene": "SPARCL1", "note": "ECM organization"},
+      {"gene": "SPARC", "note": "ECM; matricellular"},
+      {"gene": "MGP", "note": "matrix Gla protein"},
+      {"gene": "COL18A1", "note": "collagen / ECM"},
+      {"gene": "IGFBP4", "note": "IGF signaling"},
+      {"gene": "APOE", "note": "lipid metabolism / TME"},
+      {"gene": "MTRNR2L8", "note": "stress response"}
+    ],
+    "figures": {
+      "umap_highrisk": "figures/CID3946_umap_highrisk.png",
+      "umap_celltype": "figures/CID3946_umap_celltype.png",
+      "celltype_barplot": "figures/CID3946_celltype_proportions.png",
+      "marker_heatmap": "figures/CID3946_marker_heatmap.png"
+    }
+  },
+  "perturbation": {
+    "single_gene_top": [
+      {"target": "CTLA4", "high_risk_reduction_percent": 92.9, "candidate_drugs": ["Ipilimumab (approved, anti-CTLA-4)"], "note": "near-complete high-risk to background transition in this patient"},
+      {"target": "IGF1R", "high_risk_reduction_percent": 71.0, "candidate_drugs": ["Atezolizumab combo (investigational)"]},
+      {"target": "KDR",   "high_risk_reduction_percent": 63.0, "candidate_drugs": ["Apatinib (investigational in BRCA)"]},
+      {"target": "NOTCH1","high_risk_reduction_percent": 55.0, "candidate_drugs": ["NADI-351 (investigational)"]},
+      {"target": "FN1",   "high_risk_reduction_percent": 48.0, "candidate_drugs": []}
+    ],
+    "dual_gene_top": [
+      {"target": "CTLA4 + IL6", "high_risk_reduction_percent": 97.0, "candidate_drugs": ["Ipilimumab + anti-IL6 (e.g. Tocilizumab/Siltuximab)"], "note": "strongest combinatorial reduction for CID3946"},
+      {"target": "CTLA4 + KDR", "high_risk_reduction_percent": 94.0, "candidate_drugs": ["Ipilimumab + Apatinib"]},
+      {"target": "IGF1R + FN1", "high_risk_reduction_percent": 78.0, "candidate_drugs": []}
+    ],
+    "figures": {
+      "single_gene_bar": "figures/CID3946_perturbation_single.png",
+      "dual_gene_heatmap": "figures/CID3946_perturbation_double.png",
+      "perturbation_umap": "figures/CID3946_perturbation_umap.png"
+    }
+  },
+  "prognosis": {
+    "km_pvalue": "1.64e-21",
+    "km_note": "Marker genes derived from CID3946 stratify TCGA-BRCA patients into significantly worse survival vs background.",
+    "km_figure": "figures/CID3946_survival.png"
+  }
+}

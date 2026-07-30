@@ -1,0 +1,26 @@
+# SIDISH TRAINING workflow — train SIDISH on a NEW single-cell dataset.
+# LONG job (GPU/lab-server). Drive it durably with the job orchestrator:
+#   python skills/sidish-report-orchestrator/scripts/sidish_job.py submit \
+#     --config configs/sidish_training_template.yaml --job-name my-train
+mode: training
+random_seed: 0
+
+data:
+  adata_path: path/to/new_dataset.h5ad
+  bulk_csv:   null                        # required only for diseases outside the three references
+  cancer_type: breast                     # breast | lung | pancreatic -> locked manuscript bulk
+
+training:
+  device: cuda:1                          # GPU strongly recommended for training
+  path: ./RUNS/new_run/                   # where to write vae_transfer / deepCox / adata_SIDISH.h5ad
+  phase1: [225, 20, 16, [512, 256, 64], 256, Adam, 0.001, 0.0001, 0, Dense]
+  phase2: [1000, 64, 1.0e-6, 0, 0.2, 512]
+  iterations: 10                         # choose 1-100; e.g. 6 for a six-iteration run
+  percentile: 0.90
+  steepness: 1.0
+
+# For another disease:
+# data:
+#   adata_path: path/to/new_dataset.h5ad
+#   bulk_csv: path/to/matched_bulk_survival.csv
+#   cancer_type: another-disease

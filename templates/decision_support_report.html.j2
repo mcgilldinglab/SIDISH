@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIDISH decision-support report - {{ metadata.case_id }}</title>
+<style>
+  :root{--blue:#123b62;--teal:#19766f;--red:#a93333;--amber:#9a6500;--ink:#182230;
+    --muted:#5b6776;--line:#d5dde6;--soft:#f4f7fa;--paper:#fff}
+  *{box-sizing:border-box} body{margin:0;background:#e9eef3;color:var(--ink);
+    font:13.2px/1.48 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+  .page{width:210mm;min-height:296mm;margin:10mm auto;background:var(--paper);padding:14mm 15mm 13mm;
+    position:relative;box-shadow:0 2px 10px #8190a233;break-after:page}
+  .page:last-child{break-after:auto}.brand{font-weight:800;color:var(--blue);letter-spacing:.12em;font-size:12px}
+  h1{font:700 26px/1.12 Georgia,serif;color:var(--blue);margin:8px 0 4px}
+  h2{font:700 19px/1.2 Georgia,serif;color:var(--blue);margin:0 0 12px;border-bottom:2px solid var(--blue);padding-bottom:6px}
+  h3{font-size:14px;color:var(--blue);margin:14px 0 5px} p{margin:6px 0}
+  .status{background:#fff4d6;border:1px solid #e0bc58;padding:8px 10px;font-weight:750;margin:14px 0}
+  .intended{background:#eef6fb;border-left:4px solid var(--blue);padding:10px 12px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .card{border:1px solid var(--line);background:#fff;padding:10px;border-radius:4px}.soft{background:var(--soft)}
+  .metric{font-size:23px;font-weight:800;color:var(--blue)}.small{font-size:11px;color:var(--muted)}
+  .tag{display:inline-block;padding:2px 7px;border-radius:10px;background:#e8eef5;color:var(--blue);font-size:10px;font-weight:750}
+  .sample{background:#dff4ed;color:#116456}.cohort{background:#e6effa;color:#24598b}.hyp{background:#fff0cf;color:#805200}
+  table{border-collapse:collapse;width:100%;margin:7px 0 12px;font-size:11.5px}th,td{border:1px solid var(--line);padding:6px 7px;text-align:left;vertical-align:top}
+  th{background:#edf2f7;color:var(--blue)}ul{margin:5px 0 8px;padding-left:19px}li{margin:3px 0}
+  .warning{border-left:4px solid var(--amber);background:#fff8e8;padding:8px 10px;margin:9px 0}
+  .stop{border-left:4px solid var(--red);background:#fff1f1;padding:8px 10px;margin:9px 0}
+  .footer{position:absolute;left:15mm;right:15mm;bottom:7mm;border-top:1px solid var(--line);padding-top:5px;color:var(--muted);font-size:10px;display:flex;justify-content:space-between}
+  .sign{height:38px;border-bottom:1px solid #7b8793;margin-top:10px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;word-break:break-all}
+  @media print{body{background:#fff}.page{margin:0;box-shadow:none}}
+</style>
+</head>
+<body>
+<section class="page">
+  <div class="brand">SIDISH - TRANSLATIONAL DECISION SUPPORT</div>
+  <h1>Single-cell risk-state and perturbation report</h1>
+  <p class="small">Case {{ metadata.case_id }} - Generated {{ generated_date }} - Schema {{ result.schema_version }}</p>
+  <div class="status">{{ release_status }}</div>
+  <div class="card soft"><strong>Report focus:</strong> {{ ctx.report_focus_label }}{% if ctx.focused_report and not ctx.include_other_perturbations %}<br><span class="small">Other target, dual-target, and pathway perturbation results are intentionally excluded from this focused report.</span>{% endif %}</div>
+  <div class="intended"><strong>Intended use.</strong> This report is an adjunct for oncologists,
+    pathologists, and molecular tumour boards. It highlights model-defined cellular states and
+    testable biological hypotheses. It does not diagnose disease, estimate absolute individual
+    risk, select a drug, or replace guideline-based care.</div>
+  <div class="grid">
+    <div class="card"><h3>Case</h3>
+      <p><strong>Pseudonymous case ID:</strong> {{ metadata.case_id }}</p>
+      <p><strong>Analysis scope:</strong> {{ ctx.scope_label }}</p>
+      {% if ctx.analysis_scope == "patient" %}<p><strong>Sample/patient:</strong> {{ metadata.patient_id or metadata.specimen_id or "Not provided" }}</p>{% endif %}
+      <p><strong>Disease:</strong> {{ metadata.disease_label }}</p>
+      <p><strong>Subtype:</strong> {{ metadata.cancer_subtype or "Not available" }}</p>
+      <p><strong>Stage:</strong> {{ metadata.stage or "Not available" }}</p>
+    </div>
+    <div class="card"><h3>Data and status</h3>
+      <p><strong>Source:</strong> {{ metadata.data_source or "Not available" }}</p>
+      <p><strong>Model:</strong> {{ evidence[0].provenance.model_version if evidence else "Not available" }}</p>
+      <p><strong>Training iterations:</strong> {{ ctx.training_iterations }}</p>
+      <p><strong>Regulatory status:</strong> Research use only</p>
+      <p><strong>Review:</strong> {{ result.signoff.status }}</p>
+    </div>
+  </div>
+  <h3>Executive clinical synthesis</h3>
+  <div class="card soft">{{ summary }}</div>
+  <div class="grid3" style="margin-top:12px">
+    <div class="card"><div class="metric">{{ "%.1f"|format(ctx.burden.fraction*100) if ctx.burden else "-" }}%</div><div>Model-labelled cells</div><span class="tag {{ 'cohort' if ctx.analysis_scope == 'cohort' else 'sample' }}">{{ ctx.observation_scope }}</span></div>
+    <div class="card"><div class="metric">{{ ctx.top_cell if ctx.celltype_available else "Not annotated" }}</div><div>Dominant high-risk compartment</div><span class="tag {{ 'cohort' if ctx.analysis_scope == 'cohort' else 'sample' }}">{{ ctx.observation_scope }}</span></div>
+    <div class="card"><div class="metric">{{ ctx.top_target.target or "-" }}</div><div>Top target-network hypothesis</div><span class="tag hyp">Model hypothesis</span></div>
+  </div>
+  <div class="stop"><strong>Clinical handling:</strong> no treatment change is authorized by this report. Confirm relevant findings with established pathology, molecular, or functional methods before clinical consideration.</div>
+  <div class="footer"><span>SIDISH decision support - {{ metadata.case_id }}</span><span>1 / 6</span></div>
+</section>
+
+<section class="page">
+  <h2>1. Cellular landscape and verification questions</h2>
+  <div class="grid3">
+    <div class="card"><div class="metric">{{ ctx.burden.n_high_risk or "-" }}</div><div>High-risk cells</div></div>
+    <div class="card"><div class="metric">{{ ctx.burden.n_cells or "-" }}</div><div>Total {{ "dataset" if ctx.analysis_scope == "cohort" else "sample" }} cells</div></div>
+    <div class="card"><div class="metric">{{ "%.1f"|format(ctx.burden.fraction*100) if ctx.burden else "-" }}%</div><div>High-risk fraction</div></div>
+  </div>
+  <div class="warning"><strong>Interpretation boundary:</strong> this is a fraction of {{ "all cells in the uploaded dataset" if ctx.analysis_scope == "cohort" else "sampled cells from the selected patient/sample" }} receiving a model label - not an individual probability of recurrence, death, or treatment response.</div>
+  <h3>High-risk cell-type composition</h3>
+  {% if ctx.celltype_available and ctx.composition %}
+  <table><tr><th>Cell type</th><th>Share of high-risk cells</th><th>Potential confirmation question</th></tr>
+    {% for name, value in ctx.composition.items() %}<tr><td>{{ name }}</td><td>{{ "%.1f"|format(value*100) }}%</td><td>Can pathology or an orthogonal marker panel confirm this compartment in current tumour material?</td></tr>{% endfor %}
+  </table>
+  {% else %}
+  <div class="warning"><strong>Cell-type composition unavailable.</strong> The uploaded AnnData does not contain a usable <span class="mono">celltype_major</span> annotation. High-risk burden and perturbation findings remain reportable, but this report does not infer or invent cell identities.</div>
+  {% endif %}
+  <h3>Suggested verification sequence</h3>
+  <table><tr><th>Model observation</th><th>Clinical question</th><th>Possible verification</th><th>Decision supported</th></tr>
+    <tr><td>Model-labelled high-risk cell fraction</td><td>Robust state or sampling/QC artefact?</td><td>Review cell counts, batch effects, viability, doublets, and pathology concordance.</td><td>Whether further biological workup is justified.</td></tr>
+    {% if ctx.celltype_available %}<tr><td>{{ ctx.top_cell }}-dominant compartment</td><td>Is the compartment present and spatially relevant?</td><td>Pathologist-selected IHC/ISH or spatial assay, chosen from validated markers.</td><td>Which compartment should be prioritized for follow-up.</td></tr>{% else %}<tr><td>Cell identity not supplied</td><td>Which cell populations carry the model-labelled state?</td><td>Add a validated annotation workflow, pathology review, or orthogonal marker panel before making compartment-specific claims.</td><td>Whether cell-type-specific follow-up is possible.</td></tr>{% endif %}
+  </table>
+  <div class="footer"><span>SIDISH decision support - Cellular findings</span><span>2 / 6</span></div>
+</section>
+
+<section class="page">
+  <h2>2. Cohort molecular program and pathway context</h2>
+  <p><span class="tag cohort">Cohort-level association</span> These results characterize the analysed high-risk program and are not automatically patient-specific.</p>
+  <h3>Marker genes</h3>
+  <div class="card">{{ ctx.markers|join(", ") if ctx.markers else "No validated marker list available." }}</div>
+  <h3>Pathway-table overlaps</h3>
+  <table><tr><th>Pathway</th><th>Reference q-value</th><th>Overlapping genes</th><th>Use</th></tr>
+    {% for p in ctx.activated_pathways %}<tr><td>{{ p.name }}</td><td>{{ p.q_value }}</td><td>{{ p.genes|join(", ") }}</td><td>Prioritize an orthogonal pathway assay after confirming the cell compartment.</td></tr>{% endfor %}
+  </table>
+  <div class="warning">The q-values shown belong to the bundled manuscript enrichment table. New enrichment must be computed and validated before applying inferential claims to a different dataset or marker threshold.</div>
+  <h3>Ordering principle</h3>
+  <p>Confirm the cellular compartment first, then select the smallest validated molecular panel capable of testing the nominated marker/pathway program. SIDISH does not itself order tests.</p>
+  <div class="footer"><span>SIDISH decision support - Molecular program</span><span>3 / 6</span></div>
+</section>
+
+<section class="page">
+  <h2>3. Target, pathway, and drug perturbation hypotheses</h2>
+  {% if ctx.focused_report %}<div class="intended"><strong>Focused perturbation:</strong> {{ ctx.focus_targets|join(", ") }}. Tables on this page are filtered to this requested target unless otherwise stated.</div>{% endif %}
+  <p><span class="tag hyp">Computational hypothesis</span> Perturbations simulate target-plus-PPI-network expression ablation and reclassification; they are not literal gene editing or pharmacologic response predictions.</p>
+  <h3>Target-network perturbation</h3>
+  <table><tr><th>Target</th><th>Model-labelled high-risk reduction</th><th>Scope</th><th>Suggested use</th></tr>
+    {% for r in ctx.target_rows %}<tr><td>{{ r.target }}</td><td>{{ r.reduction }}%</td><td>{{ ctx.scopes["model.target_perturbation"] }}</td><td>Orthogonal target and pathway validation.</td></tr>{% endfor %}
+    {% if not ctx.target_rows %}<tr><td colspan="4">No target-network perturbation result is available for this report.</td></tr>{% endif %}
+  </table>
+  {% if ctx.dual_rows %}<h3>Dual-target perturbation</h3>
+  <table><tr><th>Targets</th><th>Reduction</th><th>Interpretation</th></tr>
+    {% for r in ctx.dual_rows %}<tr><td>{{ r.target }}</td><td>{{ r.reduction }}%</td><td>Exploratory model hypothesis requiring independent validation.</td></tr>{% endfor %}
+  </table>{% endif %}
+  {% if ctx.pathway_perturbations %}
+  <h3>Pathway perturbation</h3>
+  <table><tr><th>Pathway/program</th><th>Genes modelled</th><th>Reduction</th><th>Scope</th></tr>
+    {% for r in ctx.pathway_perturbations %}<tr><td>{{ r.pathway }}</td><td>{{ r.genes|join(", ") }}</td><td>{{ r.reduction }}%</td><td>{{ ctx.scopes["model.pathway_perturbation"] }}</td></tr>{% endfor %}
+  </table>
+  {% elif ctx.focused_report %}<p class="small">Pathway perturbation sweeps are excluded from this target-focused report.</p>{% endif %}
+  <h3>Drug mapping</h3>
+  <table><tr><th>Model target</th><th>Compound</th><th>Mechanism label</th><th>Status label</th></tr>
+    {% for r in ctx.drug_rows %}<tr><td>{{ r.target }}</td><td>{{ r.drug }}</td><td>{{ r.moa }}</td><td>{{ r.status }}</td></tr>{% endfor %}
+    {% if not ctx.drug_rows %}<tr><td colspan="4">No configured compound mapping is available for the focused target.</td></tr>{% endif %}
+  </table>
+  {% if ctx.mechanism %}<h3>Mechanistic network hypothesis</h3><div class="card soft">{{ ctx.mechanism.narrative|safe if ctx.mechanism.narrative else "No mechanistic narrative is available." }}</div>{% endif %}
+  <div class="stop"><strong>Not a drug recommendation.</strong> Links may be indirect, indication-specific, investigational, preclinical, or obsolete. Independently verify mechanism, current regulatory status, tumour indication, contraindications, and trial evidence.</div>
+  <div class="footer"><span>SIDISH decision support - Perturbation hypotheses</span><span>4 / 6</span></div>
+</section>
+
+<section class="page">
+  <h2>4. Quality and evidence provenance</h2>
+  <h3>Quality checks</h3>
+  <table><tr><th>Check</th><th>Status</th><th>Detail</th><th>Threshold</th></tr>
+    {% for q in qc %}<tr><td>{{ q.name }}</td><td>{{ q.status.value }}</td><td>{{ q.detail }}</td><td>{{ q.threshold or "-" }}</td></tr>{% endfor %}
+  </table>
+  <h3>Evidence provenance</h3>
+  <table><tr><th>Evidence</th><th>Scope</th><th>Method</th><th>Source/model</th></tr>
+    {% for e in evidence %}<tr><td>{{ e.title }}</td><td>{{ e.scope.value }}</td><td>{{ e.provenance.method }}</td><td>{{ e.provenance.source_dataset }}<br>{{ e.provenance.model_version }}</td></tr>{% endfor %}
+  </table>
+  <div class="footer"><span>SIDISH decision support - Quality and provenance</span><span>5 / 6</span></div>
+</section>
+
+<section class="page">
+  <h2>5. Limitations, clinical boundary, and review</h2>
+  <h3>Principal limitations</h3>
+  <ul>{% for e in evidence %}{% for limitation in e.limitations %}{% if limitation %}<li><strong>{{ e.title }}:</strong> {{ limitation }}</li>{% endif %}{% endfor %}{% endfor %}</ul>
+  <div class="intended">{{ disclaimer }}</div>
+  <div class="grid">
+    <div><strong>Scientific reviewer</strong><div class="sign">{{ result.signoff.scientific_reviewer or "" }}</div><span class="small">{{ result.signoff.reviewed_at or "Name, credentials, date" }}</span></div>
+    <div><strong>Clinical reviewer</strong><div class="sign">{{ result.signoff.clinical_reviewer or "" }}</div><span class="small">{{ result.signoff.reviewed_at or "Name, credentials, date" }}</span></div>
+  </div>
+  <p class="small mono">Case schema {{ result.schema_version }} - Created {{ result.created_at }} - Updated {{ result.updated_at }}</p>
+  <div class="footer"><span>SIDISH decision support - Draft pending review</span><span>6 / 6</span></div>
+</section>
+</body>
+</html>

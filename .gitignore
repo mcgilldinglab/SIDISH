@@ -1,0 +1,44 @@
+# ---- Secrets / local config ----
+.env
+.env.local
+*.local
+
+# ---- Python build / cache ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---- OS / editor ----
+.DS_Store
+.vscode/
+.idea/
+
+# ---- Large reference data & model assets (configured via .env, not tracked) ----
+BREAST_CANCER/
+LUNG_CANCER/
+PANCREAS_CANCER/
+PPI/
+data/
+payloads/
+
+# ---- Agent run artifacts ----
+outputs/
+reports/
+figures/
+*.log
+
+# ---- Trained models / large binaries ----
+*.pt
+*.pth
+*.h5ad
+*.ckpt
+
+# ---- Large media / generated docs (keep out of git) ----
+Presentation1.pptx
+SIDISH_agent_demo.pptx
+CID3946_SIDISH_report.html

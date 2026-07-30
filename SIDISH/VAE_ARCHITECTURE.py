@@ -184,7 +184,8 @@ class ARCHITECTURE(nn.Module):
         self.log_theta = torch.nn.Parameter(torch.randn(self.input_dim))
         
         if self.use_spatial:
-            self.encoder = SpatialEncoder(self.input_dim, self.z_dim, self.layer_dims, gcn_dims, dropout)
+            self.encoder = SpatialEncoder(self.input_dim, self.z_dim, self.layer_dims,
+                                          dropout=dropout, gcn_dims=gcn_dims)
             self.decoder = Decoder(self.input_dim, self.z_dim, self.layer_dims[::-1], dropout)
             self.before_last_layer = self.encoder.before_last_layer
             
@@ -195,10 +196,8 @@ class ARCHITECTURE(nn.Module):
             self.before_last_layer = self.encoder.before_last_layer
 
     def reparameterize(self, mu, logvar):
-        # Normal(mu, logvar).rsample()
-        '''std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)'''
-        return Normal(mu, logvar).rsample() #mu + eps * std
+        scale = torch.exp(0.5 * logvar).clamp_min(1e-6)
+        return Normal(mu, scale).rsample()
 
     def forward(self, x, edge_index=None, edge_weight=None):
         x = torch.log(x + 1)
@@ -223,20 +222,20 @@ class ARCHITECTURE(nn.Module):
         else:
             mu_encoder, logvar = self.encoder(x.view(-1, self.input_dim))
         
-        return mu_encoder + torch.exp(0.5*logvar)
+        return mu_encoder
     
     
     def get_base_latent_representation(self, x):
         x = torch.log(x + 1)
         h  = self.before_last_layer(x.view(-1, self.input_dim))
-        mu = self.base_mean(h)
-        lv = self.base_logvar(h)
-        return mu + torch.exp(0.5 * lv)
+        mu = self.encoder.fc_mean(h)
+        return mu
 
     def kl_d(self,mu, logvar):
         z_loc = torch.zeros_like(mu)
         z_scale = torch.ones_like(logvar)
-        kl = KL(Normal(mu, logvar), Normal(z_loc, z_scale)).sum(dim=1)
+        scale = torch.exp(0.5 * logvar).clamp_min(1e-6)
+        kl = KL(Normal(mu, scale), Normal(z_loc, z_scale)).sum(dim=1)
 
         return kl #(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1))
 
@@ -264,4 +263,3 @@ class ARCHITECTURE(nn.Module):
         return torch.mean(reconstruction_loss, dim=0) + torch.mean(kl_div, dim=0)
 
 ######################################## END ############################################
-

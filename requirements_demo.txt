@@ -1,0 +1,5 @@
+# On top of SIDISH's own requirements (scanpy, anndata, torch, lifelines, ...)
+jinja2>=3.1
+openai>=1.0          # only needed for AI-written narrative
+streamlit>=1.30      # only needed for the local UI
+weasyprint>=60       # optional: HTML -> PDF (else use browser Print-to-PDF)

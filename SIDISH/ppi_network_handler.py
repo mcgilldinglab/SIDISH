@@ -42,9 +42,24 @@ class PPINetworkHandler:
                 A DataFrame containing the merged PPI network with columns:
                 "Source", "Target", and "Weight".
         """
-        # Compute paths relative to this file's directory:
-        base_dir = os.path.dirname('../data/')
-        ppi_dir = os.path.join(base_dir, "PPI")
+        # Resolve the PPI directory robustly. The original hard-coded '../data/PPI'
+        # (relative to CWD); we search a few sensible locations so it works whether
+        # the files live in ../data/PPI, ./PPI, or alongside the package.
+        here = os.path.dirname(os.path.abspath(__file__))
+        _needed = ["9606.protein.info.v11.5.txt", "9606.protein.links.v11.5.txt", "hippie_current.txt"]
+        _candidates = [
+            os.environ.get("SIDISH_PPI_DIR"),
+            os.path.join("..", "data", "PPI"),          # original location (relative to CWD)
+            "PPI",                                       # ./PPI
+            os.path.join(here, "..", "PPI"),             # <package_parent>/PPI  (e.g. AGENT/PPI)
+            os.path.join(here, "PPI"),                   # SIDISH/PPI
+        ]
+        ppi_dir = next((d for d in _candidates
+                        if d and all(os.path.exists(os.path.join(d, f)) for f in _needed)), None)
+        if ppi_dir is None:
+            raise FileNotFoundError(
+                "PPI files (%s) not found. Set SIDISH_PPI_DIR or place them in ./PPI or ../data/PPI."
+                % ", ".join(_needed))
         info_file = os.path.join(ppi_dir, "9606.protein.info.v11.5.txt")
         links_file = os.path.join(ppi_dir, "9606.protein.links.v11.5.txt")
         hippie_file = os.path.join(ppi_dir, "hippie_current.txt")
@@ -53,50 +68,47 @@ class PPINetworkHandler:
         adatagene = set(self.adata.var.index.values)
 
         # --- Build gene mapping from STRING info file ---
+        gene_map = {}
         with open(info_file, "r") as f:
-            lines = f.readlines()[1:]  # Skip header
-            gene_map = {
-                line.split("\t")[0]: line.split("\t")[1].strip()
-                for line in lines
-                if line.split("\t")[1].strip() in adatagene
-            }
+            next(f, None)
+            for line in f:
+                parts = line.split("\t")
+                if len(parts) >= 2 and parts[1].strip() in adatagene:
+                    gene_map[parts[0]] = parts[1].strip()
 
         # --- Process Hippie file ---
         newhippie = []
         with open(hippie_file, "r") as f:
-            hippie_lines = f.readlines()
-        for line in hippie_lines[1:]:
-            parts = line.split("\t")
-            if len(parts) < 5:
-                continue
-            A = parts[0].split("_")[0]
-            B = parts[2].split("_")[0]
-            try:
-                score_value = float(parts[4])
-            except ValueError:
-                continue
-            if A in adatagene and B in adatagene and score_value >= threshold:
-                score_int = int(score_value * 1000)  # scale to match STRING file scores
-                newhippie.append([A, B, score_int])
-                newhippie.append([B, A, score_int])
+            next(f, None)
+            for line in f:
+                parts = line.split("\t")
+                if len(parts) < 5:
+                    continue
+                A = parts[0].split("_")[0]
+                B = parts[2].split("_")[0]
+                try:
+                    score_value = float(parts[4])
+                except ValueError:
+                    continue
+                if A in adatagene and B in adatagene and score_value >= threshold:
+                    score_int = int(score_value * 1000)
+                    newhippie.append([A, B, score_int])
+                    newhippie.append([B, A, score_int])
 
         # --- Process STRING links file ---
         newstring = []
         with open(links_file, "r") as f:
-            string_lines = f.readlines()[1:]  # Skip header
-        for line in string_lines:
-            parts = line.strip().split()
-            if len(parts) < 3:
-                continue
-            try:
-                score = int(parts[2].strip("\n"))
-            except ValueError:
-                continue
-            if score >= threshold * 1000:
-                if parts[0] in gene_map and parts[1] in gene_map:
-                    gene_source = gene_map[parts[0]]
-                    gene_target = gene_map[parts[1]]
-                    newstring.append([gene_source, gene_target, score])
+            next(f, None)
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    continue
+                try:
+                    score = int(parts[2])
+                except ValueError:
+                    continue
+                if score >= threshold * 1000 and parts[0] in gene_map and parts[1] in gene_map:
+                    newstring.append([gene_map[parts[0]], gene_map[parts[1]], score])
 
         # --- Merge interactions from Hippie and STRING sources ---
         merged_interactions = newstring + newhippie
