@@ -126,7 +126,7 @@ def plot_umap_differential(ax, umap_combined):
         alpha=1, 
         s=15, 
         ax=ax,
-        legend=False 
+        legend="auto"
     )
     
     ax.spines["top"].set_visible(False)
@@ -136,10 +136,9 @@ def plot_umap_differential(ax, umap_combined):
     
     ax.set_xticks([])
     ax.set_yticks([])
-    # Update legend to include perturbation score
+    # Show the continuous risk legend
     handles, labels = ax.get_legend_handles_labels()
-    handles.append(plt.Line2D([0], [0]))
-    ax.legend(handles, labels, loc="upper left", fontsize=12, bbox_to_anchor=(0.95, 0.75), frameon=False)
+    ax.legend(handles, labels, title="risk", loc="upper left", fontsize=10, bbox_to_anchor=(0.95, 0.75), frameon=False)
 
 
 def map_event_column(val):
@@ -1092,7 +1091,7 @@ class SIDISH:
             umap_combined['risk'] = adata_p.obs['perturbation_score'].values
 
             plot_umap_differential(ax, umap_combined)
-            ax.set_title("In silico Knockout of {} (Change in score)".format(gene), fontsize=12, y=0.96)
+            ax.set_title("In silico Knockout of {} (Change in score: {:.3f})".format(gene, self.delta_change[gene]), fontsize=12, y=0.96)
         
 
         # Remove empty subplots
