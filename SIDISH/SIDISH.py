@@ -1276,7 +1276,7 @@ class SIDISH:
         heatmap_matrix = heatmap_matrix.loc[sorted_genes, sorted_genes]
         
         for gene in sorted_genes:
-            score = self.percent_change[gene][id]
+            score = self.percent_change[gene]
             heatmap_matrix[gene] = heatmap_matrix[gene].fillna(score)
         
         # Create the figure and subplots with different width ratios
